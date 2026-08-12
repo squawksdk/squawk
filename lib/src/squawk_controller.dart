@@ -55,6 +55,14 @@ class SquawkController {
   ValueListenable<bool> get isCapturing => _isCapturing;
   final ValueNotifier<bool> _isCapturing = ValueNotifier(false);
 
+  /// The last completed report, whichever trigger produced it.
+  ///
+  /// This is the stubbed sink: reports currently stop here. The example app
+  /// watches it to show what was captured. It goes away once the spool and
+  /// upload land and reports have a real destination.
+  ValueListenable<SquawkReport?> get lastReport => _lastReport;
+  final ValueNotifier<SquawkReport?> _lastReport = ValueNotifier(null);
+
   /// Opens the capture UI and returns the report, with user context attached.
   ///
   /// Does nothing while a capture is already on screen. The reporter is
@@ -84,12 +92,14 @@ class SquawkController {
 
     _isCapturing.value = true;
     try {
-      final report = await host.capture.capture(host.context);
-      return report?.copyWith(
+      final captured = await host.capture.capture(host.context);
+      final report = captured?.copyWith(
         userId: _userId,
         userEmail: _userEmail,
         metadata: Map.unmodifiable(_metadata),
       );
+      if (report != null) _lastReport.value = report;
+      return report;
     } finally {
       _isCapturing.value = false;
     }
@@ -99,6 +109,7 @@ class SquawkController {
   void reset() {
     _host = null;
     _isCapturing.value = false;
+    _lastReport.value = null;
     clearUser();
   }
 }

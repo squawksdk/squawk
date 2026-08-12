@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:squawk/squawk.dart';
+// Demo-only: reports currently stop at a stubbed sink inside the SDK because
+// there is no upload or inbox yet. Watching it is how this app shows what was
+// captured. Delete this import — and the card below — once reports have a
+// real destination.
+// ignore: implementation_imports
+import 'package:squawk/src/squawk_controller.dart';
 
 void main() {
   runApp(
@@ -87,8 +93,45 @@ class _DemoHomeState extends State<DemoHome> {
             'Annotate this text when the sheet opens — it is here to give the '
             'screenshot something recognisable to draw on.',
           ),
+          const Divider(height: 40),
+          const _LastReportCard(),
         ],
       ),
+    );
+  }
+}
+
+/// Shows whatever the SDK last captured, from any trigger.
+///
+/// Check the screenshot for the floating button: it sits inside the capture
+/// boundary, so if it ever appears here, it is appearing in real reports too.
+class _LastReportCard extends StatelessWidget {
+  const _LastReportCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<SquawkReport?>(
+      valueListenable: SquawkController.instance.lastReport,
+      builder: (context, report, _) {
+        if (report == null) {
+          return const Text('No report captured yet.');
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Last report', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text('text: ${report.text ?? '(none)'}'),
+            Text('user: ${report.userId ?? '(none)'} '
+                '${report.userEmail ?? ''}'),
+            Text('metadata: ${report.metadata}'),
+            Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
+            const SizedBox(height: 8),
+            Image.memory(report.screenshot, height: 360),
+          ],
+        );
+      },
     );
   }
 }

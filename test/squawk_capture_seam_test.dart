@@ -77,6 +77,15 @@ void main() {
     expect(report.metadata, isEmpty);
   });
 
+  testWidgets('the last report is published for every trigger', (tester) async {
+    await tester.pumpWidget(app(FakeCapture(result: reportWith(text: 'hi'))));
+    expect(SquawkController.instance.lastReport.value, isNull);
+
+    await Squawk.show();
+
+    expect(SquawkController.instance.lastReport.value?.text, 'hi');
+  });
+
   testWidgets('a dismissed sheet produces no report', (tester) async {
     await tester.pumpWidget(app(FakeCapture(result: null)));
 
