@@ -12,7 +12,7 @@ import 'support/fakes.dart';
 /// prove the adapter behind it is actually wired to a working sheet. They are
 /// the tests that would catch `feedback` breaking on a future Flutter.
 void main() {
-  setUp(() => SquawkController.instance.reset());
+  setUp(() => resetSquawk());
 
   Widget hostApp() => const Squawk(
         apiKey: 'sq_test_key',

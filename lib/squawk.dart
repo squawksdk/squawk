@@ -4,6 +4,7 @@
 /// https://squawksdk.com.
 library;
 
+export 'src/device_context.dart' show BuildMode, DeviceContext;
 export 'src/log_buffer.dart' show LogEntry;
 export 'src/squawk_options.dart';
 export 'src/squawk.dart';

@@ -3,8 +3,10 @@ import 'package:shake_gesture/shake_gesture.dart';
 
 import 'capture/feedback_capture.dart';
 import 'capture/report_capture.dart';
+import 'device_context.dart';
 import 'feedback_button.dart';
 import 'squawk_controller.dart';
+import 'platform_readers.dart';
 import 'squawk_options.dart';
 
 /// Wrap your app in this and a shake opens the report sheet.
@@ -91,7 +93,12 @@ class _SquawkHostState extends State<_SquawkHost> {
   @override
   void initState() {
     super.initState();
-    SquawkController.instance.mount(context, widget.capture);
+    SquawkController.instance
+      ..mount(context, widget.capture)
+      ..collector ??= DeviceContextCollector(
+        readDevice: readDeviceInfo,
+        readApp: readAppInfo,
+      );
     if (widget.options.captureLogs) {
       SquawkController.instance.startCapturingLogs();
     }

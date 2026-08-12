@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'device_context.dart';
 import 'log_buffer.dart';
 
 /// A single report on its way to the Squawk backend.
@@ -16,6 +17,7 @@ class SquawkReport {
     this.userEmail,
     this.metadata = const {},
     this.logs = const [],
+    this.device,
   });
 
   /// The annotated screenshot, as PNG bytes.
@@ -34,6 +36,11 @@ class SquawkReport {
   /// Arbitrary key/value context set via `Squawk.setMetadata`.
   final Map<String, Object?> metadata;
 
+  /// Device, OS, app version and build mode. Null only if collection has not
+  /// run yet — individual fields are nullable so a partial failure still
+  /// leaves a usable report.
+  final DeviceContext? device;
+
   /// Recent log output and Flutter errors, oldest first.
   ///
   /// Empty when the host app opted out with `captureLogs: false`.
@@ -44,6 +51,7 @@ class SquawkReport {
     String? userEmail,
     Map<String, Object?>? metadata,
     List<LogEntry>? logs,
+    DeviceContext? device,
   }) {
     return SquawkReport(
       screenshot: screenshot,
@@ -53,6 +61,7 @@ class SquawkReport {
       userEmail: userEmail ?? this.userEmail,
       metadata: metadata ?? this.metadata,
       logs: logs ?? this.logs,
+      device: device ?? this.device,
     );
   }
 }

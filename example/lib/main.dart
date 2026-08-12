@@ -148,6 +148,11 @@ class _LastReportCard extends StatelessWidget {
                 '${report.userEmail ?? ''}'),
             Text('metadata: ${report.metadata}'),
             Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
+            Text('device: ${report.device?.deviceModel ?? '(unknown)'} '
+                '• ${report.device?.osName ?? '?'} '
+                '${report.device?.osVersion ?? ''}'),
+            Text('app: ${report.device?.appVersion ?? '(unknown)'} '
+                '• ${report.device?.buildMode.name ?? '?'} build'),
             const SizedBox(height: 8),
             Text(
               'logs: showing last ${report.logs.length.clamp(0, 20)} '
