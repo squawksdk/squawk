@@ -31,6 +31,37 @@ void main() {
     expect(find.text('Submit'), findsOneWidget);
   });
 
+  // Found on a real device: the sheet opened once and then never again.
+  // `feedback` only invokes its callback on submit — "if the user aborts the
+  // process of giving feedback, onFeedback is not called" — so dismissing left
+  // the capture pending forever and the re-entrancy guard swallowed every
+  // later shake.
+  testWidgets('dismissing the sheet completes the capture and re-arms',
+      (tester) async {
+    await tester.pumpWidget(hostApp());
+
+    var completed = false;
+    SquawkReport? report;
+    SquawkController.instance.show().then((r) {
+      report = r;
+      completed = true;
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Submit'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    expect(completed, isTrue, reason: 'the capture must not hang on dismiss');
+    expect(report, isNull);
+    expect(SquawkController.instance.isCapturing.value, isFalse);
+
+    // The whole point: the trigger has to work a second time.
+    unawaited(SquawkController.instance.show());
+    await tester.pumpAndSettle();
+    expect(find.text('Submit'), findsOneWidget);
+  });
+
   testWidgets('submitting returns a report carrying real screenshot bytes',
       (tester) async {
     await tester.pumpWidget(hostApp());
