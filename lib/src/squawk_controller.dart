@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'capture/report_capture.dart';
@@ -46,11 +47,33 @@ class SquawkController {
     if (_host?.context == context) _host = null;
   }
 
+  /// Whether a capture is currently on screen.
+  ///
+  /// The floating button watches this so it can hide itself: it lives inside
+  /// the capture boundary, so a visible button would appear in the very
+  /// screenshot it produced.
+  ValueListenable<bool> get isCapturing => _isCapturing;
+  final ValueNotifier<bool> _isCapturing = ValueNotifier(false);
+
+  /// The last completed report, whichever trigger produced it.
+  ///
+  /// This is the stubbed sink: reports currently stop here. The example app
+  /// watches it to show what was captured. It goes away once the spool and
+  /// upload land and reports have a real destination.
+  ValueListenable<SquawkReport?> get lastReport => _lastReport;
+  final ValueNotifier<SquawkReport?> _lastReport = ValueNotifier(null);
+
   /// Opens the capture UI and returns the report, with user context attached.
+  ///
+  /// Does nothing while a capture is already on screen. The reporter is
+  /// holding the phone when the sheet opens, so a second shake is likely;
+  /// without this guard it would stack sheets and send two reports for one bug.
   ///
   /// Reports a Flutter error and returns null when no widget is mounted — a
   /// misconfigured SDK must not take the host app down.
   Future<SquawkReport?> show() async {
+    if (_isCapturing.value) return null;
+
     final host = _host;
     if (host == null) {
       FlutterError.reportError(
@@ -67,17 +90,26 @@ class SquawkController {
       return null;
     }
 
-    final report = await host.capture.capture(host.context);
-    return report?.copyWith(
-      userId: _userId,
-      userEmail: _userEmail,
-      metadata: Map.unmodifiable(_metadata),
-    );
+    _isCapturing.value = true;
+    try {
+      final captured = await host.capture.capture(host.context);
+      final report = captured?.copyWith(
+        userId: _userId,
+        userEmail: _userEmail,
+        metadata: Map.unmodifiable(_metadata),
+      );
+      if (report != null) _lastReport.value = report;
+      return report;
+    } finally {
+      _isCapturing.value = false;
+    }
   }
 
   @visibleForTesting
   void reset() {
     _host = null;
+    _isCapturing.value = false;
+    _lastReport.value = null;
     clearUser();
   }
 }

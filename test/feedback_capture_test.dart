@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
+import 'package:squawk/src/capture/squawk_feedback_form.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
 /// Drives the real `feedback` UI rather than a fake.
@@ -31,6 +32,37 @@ void main() {
     expect(find.text('Submit'), findsOneWidget);
   });
 
+  // Found on a real device: the sheet opened once and then never again.
+  // `feedback` only invokes its callback on submit — "if the user aborts the
+  // process of giving feedback, onFeedback is not called" — so dismissing left
+  // the capture pending forever and the re-entrancy guard swallowed every
+  // later shake.
+  testWidgets('dismissing the sheet completes the capture and re-arms',
+      (tester) async {
+    await tester.pumpWidget(hostApp());
+
+    var completed = false;
+    SquawkReport? report;
+    SquawkController.instance.show().then((r) {
+      report = r;
+      completed = true;
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Submit'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    expect(completed, isTrue, reason: 'the capture must not hang on dismiss');
+    expect(report, isNull);
+    expect(SquawkController.instance.isCapturing.value, isFalse);
+
+    // The whole point: the trigger has to work a second time.
+    unawaited(SquawkController.instance.show());
+    await tester.pumpAndSettle();
+    expect(find.text('Submit'), findsOneWidget);
+  });
+
   testWidgets('submitting returns a report carrying real screenshot bytes',
       (tester) async {
     await tester.pumpWidget(hostApp());
@@ -42,7 +74,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'the button is red');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('submit_feedback_button')));
+    await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));
 
     // `feedback` submits across two clocks: a Future.delayed on the fake test
     // clock, then RepaintBoundary.toImage() which only resolves against the

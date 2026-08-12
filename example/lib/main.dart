@@ -1,116 +1,137 @@
-import 'dart:typed_data';
-
-import 'package:feedback/feedback.dart';
 import 'package:flutter/material.dart';
-import 'package:shake_gesture/shake_gesture.dart';
+import 'package:squawk/squawk.dart';
+// Demo-only: reports currently stop at a stubbed sink inside the SDK because
+// there is no upload or inbox yet. Watching it is how this app shows what was
+// captured. Delete this import — and the card below — once reports have a
+// real destination.
+// ignore: implementation_imports
+import 'package:squawk/src/squawk_controller.dart';
 
-/// Spike app for the two build-phase risks in SPEC.md §9:
-///
-/// 2. Does the shake trigger feel right? `shake_gesture` exposes no Dart-side
-///    threshold, so the only question is whether the platform default is
-///    usable as-is.
-/// 3. Does `feedback` 3.2.0 (Jul 2025) still work on current Flutter stable?
-void main() => runApp(const SpikeApp());
+void main() {
+  runApp(
+    Squawk(
+      apiKey: 'sq_test_placeholder',
+      options: const SquawkOptions(
+        // On so the demo can be triggered without shaking, e.g. on a
+        // simulator or while the phone is tethered.
+        feedbackButton: true,
+      ),
+      child: const DemoApp(),
+    ),
+  );
+}
 
-class SpikeApp extends StatelessWidget {
-  const SpikeApp({super.key});
+class DemoApp extends StatelessWidget {
+  const DemoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BetterFeedback(
-      child: MaterialApp(
-        title: 'Squawk spike',
-        theme: ThemeData(colorSchemeSeed: Colors.indigo),
-        home: const SpikeHome(),
+    return MaterialApp(
+      title: 'Squawk demo',
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      home: const DemoHome(),
+    );
+  }
+}
+
+class DemoHome extends StatefulWidget {
+  const DemoHome({super.key});
+
+  @override
+  State<DemoHome> createState() => _DemoHomeState();
+}
+
+class _DemoHomeState extends State<DemoHome> {
+  bool _loggedIn = false;
+
+  void _toggleLogin() {
+    setState(() => _loggedIn = !_loggedIn);
+
+    if (_loggedIn) {
+      Squawk.setUser(id: 'u_42', email: 'jo@client.com');
+      Squawk.setMetadata('plan', 'trial');
+      Squawk.setMetadata('screen', 'demo');
+    } else {
+      Squawk.clearUser();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Squawk demo'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bug_report),
+            onPressed: Squawk.show,
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            'Shake the phone, tap the floating button, or use the toolbar '
+            'icon. Each opens the same report sheet.',
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: SwitchListTile(
+              title: const Text('Signed in'),
+              subtitle: Text(
+                _loggedIn
+                    ? 'Reports carry u_42, jo@client.com, plan=trial'
+                    : 'Reports carry no user context',
+              ),
+              value: _loggedIn,
+              onChanged: (_) => _toggleLogin(),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Annotate this text when the sheet opens — it is here to give the '
+            'screenshot something recognisable to draw on.',
+          ),
+          const Divider(height: 40),
+          const _LastReportCard(),
+        ],
       ),
     );
   }
 }
 
-class SpikeHome extends StatefulWidget {
-  const SpikeHome({super.key});
-
-  @override
-  State<SpikeHome> createState() => _SpikeHomeState();
-}
-
-class _SpikeHomeState extends State<SpikeHome> {
-  final List<DateTime> _shakes = [];
-  String? _text;
-  Uint8List? _screenshot;
-
-  void _onShake() {
-    setState(() => _shakes.insert(0, DateTime.now()));
-    BetterFeedback.of(context).show((UserFeedback feedback) {
-      setState(() {
-        _text = feedback.text;
-        _screenshot = feedback.screenshot;
-      });
-    });
-  }
-
-  /// Gap since the previous shake, so double-fires are visible in the log.
-  String _gap(int index) {
-    if (index + 1 >= _shakes.length) return 'first';
-    final ms = _shakes[index].difference(_shakes[index + 1]).inMilliseconds;
-    return '+${ms}ms';
-  }
+/// Shows whatever the SDK last captured, from any trigger.
+///
+/// Check the screenshot for the floating button: it sits inside the capture
+/// boundary, so if it ever appears here, it is appearing in real reports too.
+class _LastReportCard extends StatelessWidget {
+  const _LastReportCard();
 
   @override
   Widget build(BuildContext context) {
-    return ShakeGesture(
-      onShake: _onShake,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Squawk spike')),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
+    return ValueListenableBuilder<SquawkReport?>(
+      valueListenable: SquawkController.instance.lastReport,
+      builder: (context, report, _) {
+        if (report == null) {
+          return const Text('No report captured yet.');
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              child: ListTile(
-                title: Text(
-                  '${_shakes.length}',
-                  style: Theme.of(context).textTheme.displaySmall,
-                ),
-                subtitle: const Text('shakes detected'),
-                trailing: FilledButton(
-                  onPressed: _onShake,
-                  child: const Text('Trigger'),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text('Shake log', style: Theme.of(context).textTheme.titleMedium),
-            if (_shakes.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text('Shake the phone. Try gentle, hard, and while '
-                    'walking — anything that fires here would fire in a real '
-                    'app.'),
-              ),
-            for (var i = 0; i < _shakes.length && i < 8; i++)
-              Text('${_shakes[i].toIso8601String().substring(11, 23)}'
-                  '   ${_gap(i)}'),
-            const Divider(height: 32),
             Text('Last report', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            if (_screenshot == null)
-              const Text('Nothing captured yet.')
-            else ...[
-              Text('text: ${_text?.isEmpty ?? true ? '(empty)' : _text}'),
-              Text('screenshot: ${_screenshot!.lengthInBytes ~/ 1024} KB'),
-              const SizedBox(height: 8),
-              // Renders the annotated PNG the package returned. A blank or
-              // broken image here is the failure mode risk 3 is watching for.
-              Image.memory(_screenshot!, height: 320),
-            ],
-            const Divider(height: 32),
-            const Text(
-              'Annotate this text when the sheet opens — it is here to give '
-              'the screenshot something recognisable to draw on.',
-            ),
+            Text('text: ${report.text ?? '(none)'}'),
+            Text('user: ${report.userId ?? '(none)'} '
+                '${report.userEmail ?? ''}'),
+            Text('metadata: ${report.metadata}'),
+            Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
+            const SizedBox(height: 8),
+            Image.memory(report.screenshot, height: 360),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
