@@ -149,8 +149,11 @@ class _LastReportCard extends StatelessWidget {
             Text('metadata: ${report.metadata}'),
             Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
             const SizedBox(height: 8),
-            Text('logs (${report.logs.length}), newest last:'),
-            for (final entry in report.logs.reversed.take(8).toList().reversed)
+            Text(
+              'logs: showing last ${report.logs.length.clamp(0, 20)} '
+              'of ${report.logs.length} captured, newest last',
+            ),
+            for (final entry in report.logs.reversed.take(20).toList().reversed)
               Text(
                 '${entry.isError ? '⚠ ' : ''}${entry.message}',
                 maxLines: 2,
