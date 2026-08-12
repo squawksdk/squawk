@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../squawk_report.dart';
 import 'report_capture.dart';
+import 'squawk_feedback_form.dart';
 
 /// [ReportCapture] backed by the OSS `feedback` package.
 ///
@@ -13,7 +14,10 @@ import 'report_capture.dart';
 /// reaches the public API or the upload path.
 class FeedbackCapture implements ReportCapture {
   @override
-  Widget wrap(Widget child) => BetterFeedback(child: child);
+  Widget wrap(Widget child) => BetterFeedback(
+        feedbackBuilder: squawkFeedbackBuilder,
+        child: child,
+      );
 
   @override
   Future<SquawkReport?> capture(BuildContext context) {

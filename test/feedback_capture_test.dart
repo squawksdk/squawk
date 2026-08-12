@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
+import 'package:squawk/src/capture/squawk_feedback_form.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
 /// Drives the real `feedback` UI rather than a fake.
@@ -73,7 +74,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'the button is red');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('submit_feedback_button')));
+    await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));
 
     // `feedback` submits across two clocks: a Future.delayed on the fake test
     // clock, then RepaintBoundary.toImage() which only resolves against the
