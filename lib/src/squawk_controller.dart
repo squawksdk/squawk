@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'capture/report_capture.dart';
+import 'log_buffer.dart';
 import 'squawk_report.dart';
 
 /// Holds the state the static API needs, independent of the widget tree.
@@ -20,6 +21,17 @@ class SquawkController {
 
   /// Set while a [Squawk] widget is mounted. Null otherwise.
   _MountedHost? _host;
+
+  /// Present only while log capture is enabled — `captureLogs: false` must
+  /// leave nothing buffered in memory, not merely withhold it from reports.
+  LogBuffer? _logs;
+
+  void startCapturingLogs() => (_logs ??= LogBuffer()).start();
+
+  void stopCapturingLogs() {
+    _logs?.stop();
+    _logs = null;
+  }
 
   void setUser({String? id, String? email}) {
     _userId = id;
@@ -97,6 +109,7 @@ class SquawkController {
         userId: _userId,
         userEmail: _userEmail,
         metadata: Map.unmodifiable(_metadata),
+        logs: _logs?.entries ?? const [],
       );
       if (report != null) _lastReport.value = report;
       return report;
@@ -110,6 +123,7 @@ class SquawkController {
     _host = null;
     _isCapturing.value = false;
     _lastReport.value = null;
+    stopCapturingLogs();
     clearUser();
   }
 }

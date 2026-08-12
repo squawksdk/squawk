@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:shake_gesture_platform_interface/shake_gesture_platform_interface.dart';
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/report_capture.dart';
@@ -66,3 +67,22 @@ class FakeShakePlatform extends ShakeGesturePlatform {
 
 SquawkReport reportWith({String? text}) =>
     SquawkReport(screenshot: Uint8List.fromList([1, 2, 3]), text: text);
+
+/// Waits on the *real* clock until [until] holds.
+///
+/// `feedback` finishes a submit through RepaintBoundary.toImage(), which only
+/// resolves against real time. A fixed delay is a coin flip once the whole
+/// suite is running in parallel — poll instead.
+Future<void> waitReal(
+  WidgetTester tester,
+  bool Function() until, {
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!until() && DateTime.now().isBefore(deadline)) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
+}

@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
+import 'support/fakes.dart';
+
 /// Reported from a Samsung A56 on Android 16: the submit button sat underneath
 /// the system navigation bar and could not be tapped, which makes the SDK
 /// unusable on any device with on-screen back/home buttons.
@@ -64,8 +66,9 @@ void main() {
 
     await tester.tap(find.byKey(const Key('squawk_submit_button')));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(seconds: 1)),
+    await waitReal(
+      tester,
+      () => SquawkController.instance.lastReport.value != null,
     );
     await tester.pumpAndSettle();
 
