@@ -4,6 +4,8 @@ import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/squawk_feedback_form.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
+import 'support/fakes.dart';
+
 /// Drives the real `feedback` UI rather than a fake.
 ///
 /// The other tests prove the SDK's own logic through the capture seam; these
@@ -80,9 +82,7 @@ void main() {
     // clock, then RepaintBoundary.toImage() which only resolves against the
     // real one. Pumping advances the first; runAsync serves the second.
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(seconds: 1)),
-    );
+    await waitReal(tester, () => report != null);
     await tester.pumpAndSettle();
 
     expect(report, isNotNull);

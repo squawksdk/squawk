@@ -92,10 +92,14 @@ class _SquawkHostState extends State<_SquawkHost> {
   void initState() {
     super.initState();
     SquawkController.instance.mount(context, widget.capture);
+    if (widget.options.captureLogs) {
+      SquawkController.instance.startCapturingLogs();
+    }
   }
 
   @override
   void dispose() {
+    SquawkController.instance.stopCapturingLogs();
     SquawkController.instance.unmount(context);
     super.dispose();
   }
