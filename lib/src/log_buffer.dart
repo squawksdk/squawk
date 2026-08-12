@@ -37,6 +37,14 @@ class LogBuffer {
 
   final int capacity;
 
+  /// Longest single line kept, in characters.
+  ///
+  /// The entry count is capped, but without this one pathological line — a
+  /// serialized response, a giant stack trace — would dominate the uploaded
+  /// report on its own. Truncating trades exactness for a payload that stays
+  /// predictable.
+  static const int maxLineLength = 2048;
+
   final Queue<LogEntry> _entries = Queue<LogEntry>();
 
   DebugPrintCallback? _previousDebugPrint;
@@ -53,7 +61,9 @@ class LogBuffer {
 
     _previousDebugPrint = debugPrint;
     debugPrint = (String? message, {int? wrapWidth}) {
-      if (message != null) _add(LogEntry(message: message, timestamp: _now()));
+      if (message != null) {
+        _add(LogEntry(message: _truncate(message), timestamp: _now()));
+      }
       _previousDebugPrint?.call(message, wrapWidth: wrapWidth);
     };
 
@@ -87,8 +97,17 @@ class LogBuffer {
 
   void clear() => _entries.clear();
 
-  void _addError(String message) =>
-      _add(LogEntry(message: message, timestamp: _now(), isError: true));
+  void _addError(String message) => _add(
+        LogEntry(
+          message: _truncate(message),
+          timestamp: _now(),
+          isError: true,
+        ),
+      );
+
+  static String _truncate(String message) => message.length <= maxLineLength
+      ? message
+      : '${message.substring(0, maxLineLength)}… (truncated)';
 
   void _add(LogEntry entry) {
     _entries.addLast(entry);

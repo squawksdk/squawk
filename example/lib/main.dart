@@ -47,6 +47,9 @@ class _DemoHomeState extends State<DemoHome> {
   void _toggleLogin() {
     setState(() => _loggedIn = !_loggedIn);
 
+    // Ordinary app logging — this is what ends up on a report.
+    debugPrint(_loggedIn ? 'user signed in' : 'user signed out');
+
     if (_loggedIn) {
       Squawk.setUser(id: 'u_42', email: 'jo@client.com');
       Squawk.setMetadata('plan', 'trial');
@@ -88,6 +91,24 @@ class _DemoHomeState extends State<DemoHome> {
               onChanged: (_) => _toggleLogin(),
             ),
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () => debugPrint(
+                  'noisy line at ${DateTime.now().toIso8601String()}',
+                ),
+                child: const Text('Log a line'),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => Future<void>.error(
+                  StateError('deliberate demo failure'),
+                ),
+                child: const Text('Throw an error'),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           const Text(
             'Annotate this text when the sheet opens — it is here to give the '
@@ -127,6 +148,19 @@ class _LastReportCard extends StatelessWidget {
                 '${report.userEmail ?? ''}'),
             Text('metadata: ${report.metadata}'),
             Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
+            const SizedBox(height: 8),
+            Text('logs (${report.logs.length}), newest last:'),
+            for (final entry in report.logs.reversed.take(8).toList().reversed)
+              Text(
+                '${entry.isError ? '⚠ ' : ''}${entry.message}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: entry.isError ? Colors.red : null,
+                ),
+              ),
             const SizedBox(height: 8),
             Image.memory(report.screenshot, height: 360),
           ],

@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/src/log_buffer.dart';
 
 void main() {
+  volumeAndTruncation();
+
   late LogBuffer buffer;
 
   setUp(() => buffer = LogBuffer(capacity: 3));
@@ -102,6 +104,47 @@ void main() {
 
       expect(debugPrint, same(originalPrint));
       expect(FlutterError.onError, same(originalOnError));
+    });
+  });
+}
+
+void volumeAndTruncation() {
+  group('volume and pathological input', () {
+    test('a chatty app cannot grow the buffer past its capacity', () {
+      final buffer = LogBuffer(capacity: 100);
+      addTearDown(buffer.stop);
+      buffer.start();
+
+      for (var i = 0; i < 10000; i++) {
+        debugPrint('line $i');
+      }
+
+      expect(buffer.entries, hasLength(100));
+      expect(buffer.entries.first.message, 'line 9900');
+      expect(buffer.entries.last.message, 'line 9999');
+    });
+
+    test('one enormous line cannot dominate the payload', () {
+      final buffer = LogBuffer(capacity: 10);
+      addTearDown(buffer.stop);
+      buffer.start();
+
+      debugPrint('x' * 500000);
+
+      final stored = buffer.entries.single.message;
+      expect(stored.length, lessThanOrEqualTo(LogBuffer.maxLineLength + 32));
+      expect(stored, endsWith('… (truncated)'));
+    });
+
+    test('a line at the limit is kept whole', () {
+      final buffer = LogBuffer(capacity: 10);
+      addTearDown(buffer.stop);
+      buffer.start();
+
+      final exact = 'y' * LogBuffer.maxLineLength;
+      debugPrint(exact);
+
+      expect(buffer.entries.single.message, exact);
     });
   });
 }
