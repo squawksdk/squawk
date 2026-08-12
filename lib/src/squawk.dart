@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
+import 'package:shake_gesture/shake_gesture.dart';
 
 import 'capture/feedback_capture.dart';
 import 'capture/report_capture.dart';
+import 'feedback_button.dart';
 import 'squawk_controller.dart';
 import 'squawk_options.dart';
 
@@ -59,7 +61,9 @@ class Squawk extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final capture = _capture ?? FeedbackCapture();
-    return capture.wrap(_SquawkHost(capture: capture, child: child));
+    return capture.wrap(
+      _SquawkHost(capture: capture, options: options, child: child),
+    );
   }
 }
 
@@ -69,9 +73,14 @@ class Squawk extends StatelessWidget {
 /// [ReportCapture.wrap] inserted, which is where the capture implementation
 /// needs to be looked up from.
 class _SquawkHost extends StatefulWidget {
-  const _SquawkHost({required this.capture, required this.child});
+  const _SquawkHost({
+    required this.capture,
+    required this.options,
+    required this.child,
+  });
 
   final ReportCapture capture;
+  final SquawkOptions options;
   final Widget child;
 
   @override
@@ -92,5 +101,23 @@ class _SquawkHostState extends State<_SquawkHost> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    var content = widget.child;
+
+    if (widget.options.feedbackButton) {
+      content = FeedbackButton(child: content);
+    }
+
+    if (widget.options.shakeToReport) {
+      content = ShakeGesture(
+        // Deliberately no sensitivity setting: iOS exposes none, and Android
+        // only through a manifest entry, which would break "zero native
+        // setup".
+        onShake: () => Squawk.show(),
+        child: content,
+      );
+    }
+
+    return content;
+  }
 }
