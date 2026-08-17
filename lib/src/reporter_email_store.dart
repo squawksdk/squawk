@@ -1,5 +1,3 @@
-import 'package:shared_preferences/shared_preferences.dart';
-
 /// Rules for the address a reporter types on the sheet.
 abstract final class ReporterEmail {
   /// Longest address kept.
@@ -67,21 +65,25 @@ class SafeReporterEmailStore implements ReporterEmailStore {
   }
 }
 
-/// Disk-backed store.
-class PrefsReporterEmailStore implements ReporterEmailStore {
-  const PrefsReporterEmailStore();
-
-  static const String _key = 'squawk.reporter_email';
+/// Holds the address for the life of the process and no longer.
+///
+/// Deliberately not persisted to disk. Remembering an address across restarts
+/// would be more convenient, but it means writing someone else's email onto a
+/// device Squawk does not control, which contradicts the "hold as little as
+/// possible" stance in the privacy policy. Bounding it to a single app run
+/// also bounds how long a shared test device can offer one tester's address
+/// to the next.
+///
+/// The cost is honest: a reporter retypes after the app restarts.
+class InProcessReporterEmailStore implements ReporterEmailStore {
+  String? _email;
 
   @override
-  Future<String?> read() async =>
-      (await SharedPreferences.getInstance()).getString(_key);
+  Future<String?> read() async => _email;
 
   @override
-  Future<void> write(String email) async =>
-      (await SharedPreferences.getInstance()).setString(_key, email);
+  Future<void> write(String email) async => _email = email;
 
   @override
-  Future<void> clear() async =>
-      (await SharedPreferences.getInstance()).remove(_key);
+  Future<void> clear() async => _email = null;
 }

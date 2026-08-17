@@ -33,7 +33,7 @@ class SquawkController {
 
   /// Remembers the reporter's address between reports. Swapped in tests.
   ReporterEmailStore emailStore =
-      const SafeReporterEmailStore(PrefsReporterEmailStore());
+      SafeReporterEmailStore(InProcessReporterEmailStore());
 
   /// The address to offer on the sheet: whatever the app already told us
   /// about the signed-in user, else whatever the reporter last typed.
