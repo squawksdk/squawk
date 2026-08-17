@@ -6,6 +6,8 @@ import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
+import 'support/fakes.dart';
+
 /// Stands in for the real capture UI. Its existence is the point of the seam:
 /// the SDK can be exercised end to end without driving a third-party widget.
 class FakeCapture implements ReportCapture {
@@ -34,7 +36,7 @@ Widget app(ReportCapture capture) => Squawk(
     );
 
 void main() {
-  setUp(() => SquawkController.instance.reset());
+  setUp(() => resetSquawk());
 
   testWidgets('show() routes to the capture adapter once mounted',
       (tester) async {

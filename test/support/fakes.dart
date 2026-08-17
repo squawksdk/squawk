@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shake_gesture_platform_interface/shake_gesture_platform_interface.dart';
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/report_capture.dart';
+import 'package:squawk/src/device_context.dart';
+import 'package:squawk/src/squawk_controller.dart';
 
 /// Stands in for the real capture UI, so the SDK can be exercised end to end
 /// without driving a third-party widget tree.
@@ -85,4 +87,24 @@ Future<void> waitReal(
     );
     await tester.pump();
   }
+}
+
+/// Resets global SDK state and installs a device-context collector that never
+/// touches a platform channel.
+///
+/// Without this, every widget test reaches for the real plugins and hangs:
+/// there is no channel implementation in a unit test, and the call neither
+/// answers nor throws.
+void resetSquawk({DeviceContextCollector? collector}) {
+  SquawkController.instance
+    ..reset()
+    ..collector = collector ??
+        DeviceContextCollector(
+          readDevice: () async => const DeviceInfo(
+            model: 'Test Device',
+            osName: 'TestOS',
+            osVersion: '1.0',
+          ),
+          readApp: () async => const AppInfo(version: '1.0.0', build: '1'),
+        );
 }

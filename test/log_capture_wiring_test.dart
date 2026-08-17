@@ -6,7 +6,7 @@ import 'package:squawk/src/squawk_controller.dart';
 import 'support/fakes.dart';
 
 void main() {
-  setUp(() => SquawkController.instance.reset());
+  setUp(() => resetSquawk());
 
   Widget app(FakeCapture capture, {required bool captureLogs}) => Squawk(
         apiKey: 'k',

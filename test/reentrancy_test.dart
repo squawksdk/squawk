@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shake_gesture_platform_interface/shake_gesture_platform_interface.dart';
 import 'package:squawk/squawk.dart';
-import 'package:squawk/src/squawk_controller.dart';
 
 import 'support/fakes.dart';
 
@@ -10,7 +9,7 @@ void main() {
   late FakeShakePlatform shake;
 
   setUp(() {
-    SquawkController.instance.reset();
+    resetSquawk();
     shake = FakeShakePlatform();
     ShakeGesturePlatform.instance = shake;
   });

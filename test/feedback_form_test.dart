@@ -12,7 +12,7 @@ import 'support/fakes.dart';
 /// `feedback` accounts for the top padding and the keyboard, but never
 /// `padding.bottom`, and ships no SafeArea.
 void main() {
-  setUp(() => SquawkController.instance.reset());
+  setUp(() => resetSquawk());
 
   const navBarHeight = 48.0;
 

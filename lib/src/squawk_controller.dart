@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'capture/report_capture.dart';
+import 'device_context.dart';
 import 'log_buffer.dart';
 import 'squawk_report.dart';
 
@@ -25,6 +26,9 @@ class SquawkController {
   /// Present only while log capture is enabled — `captureLogs: false` must
   /// leave nothing buffered in memory, not merely withhold it from reports.
   LogBuffer? _logs;
+
+  /// Swapped in tests so the plugins are never touched.
+  DeviceContextCollector? collector;
 
   void startCapturingLogs() => (_logs ??= LogBuffer()).start();
 
@@ -110,6 +114,7 @@ class SquawkController {
         userEmail: _userEmail,
         metadata: Map.unmodifiable(_metadata),
         logs: _logs?.entries ?? const [],
+        device: await collector?.collect(),
       );
       if (report != null) _lastReport.value = report;
       return report;

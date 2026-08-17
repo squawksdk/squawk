@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/feedback_button.dart';
-import 'package:squawk/src/squawk_controller.dart';
 
 import 'support/fakes.dart';
 
 void main() {
-  setUp(() => SquawkController.instance.reset());
+  setUp(() => resetSquawk());
 
   Widget app(FakeCapture capture, {required bool feedbackButton}) => Squawk(
         apiKey: 'k',
