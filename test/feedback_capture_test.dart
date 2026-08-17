@@ -73,7 +73,10 @@ void main() {
     unawaited(SquawkController.instance.show().then((r) => report = r));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).first, 'the button is red');
+    await tester.enterText(
+      find.byKey(SquawkFeedbackForm.textKey),
+      'the button is red',
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));

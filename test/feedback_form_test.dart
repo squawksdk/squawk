@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
+import 'package:squawk/src/capture/squawk_feedback_form.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
 import 'support/fakes.dart';
@@ -61,7 +62,10 @@ void main() {
     unawaited(Squawk.show());
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField), 'the button is red');
+    await tester.enterText(
+      find.byKey(SquawkFeedbackForm.textKey),
+      'the button is red',
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('squawk_submit_button')));

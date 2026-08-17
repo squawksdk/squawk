@@ -13,9 +13,18 @@ import 'squawk_feedback_form.dart';
 /// it produces is converted to [SquawkReport] here, so no `feedback` type
 /// reaches the public API or the upload path.
 class FeedbackCapture implements ReportCapture {
+  const FeedbackCapture({this.askReporterEmail = true});
+
+  final bool askReporterEmail;
+
   @override
   Widget wrap(Widget child) => BetterFeedback(
-        feedbackBuilder: squawkFeedbackBuilder,
+        feedbackBuilder: (context, onSubmit, scrollController) =>
+            SquawkFeedbackForm(
+          onSubmit: onSubmit,
+          scrollController: scrollController,
+          askReporterEmail: askReporterEmail,
+        ),
         child: child,
       );
 
@@ -45,6 +54,8 @@ class FeedbackCapture implements ReportCapture {
         SquawkReport(
           screenshot: feedback.screenshot,
           text: feedback.text.isEmpty ? null : feedback.text,
+          reporterEmail:
+              feedback.extra?[SquawkFeedbackForm.emailExtraKey] as String?,
         ),
       );
     });

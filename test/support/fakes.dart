@@ -7,6 +7,7 @@ import 'package:shake_gesture_platform_interface/shake_gesture_platform_interfac
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/device_context.dart';
+import 'package:squawk/src/reporter_email_store.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
 /// Stands in for the real capture UI, so the SDK can be exercised end to end
@@ -98,6 +99,9 @@ Future<void> waitReal(
 void resetSquawk({DeviceContextCollector? collector}) {
   SquawkController.instance
     ..reset()
+    // Without this every test that submits or calls clearUser reaches for
+    // shared_preferences, where there is no platform channel to answer.
+    ..emailStore = InMemoryEmailStore()
     ..collector = collector ??
         DeviceContextCollector(
           readDevice: () async => const DeviceInfo(
@@ -108,3 +112,34 @@ void resetSquawk({DeviceContextCollector? collector}) {
           readApp: () async => const AppInfo(version: '1.0.0', build: '1'),
         );
 }
+
+/// Stands in for disk. The real store is exercised on a device; these tests
+/// are about the rules around it.
+class InMemoryEmailStore implements ReporterEmailStore {
+  InMemoryEmailStore({String? initial, this.throwOnEverything = false})
+      : _value = initial;
+
+  String? _value;
+  final bool throwOnEverything;
+  int writes = 0;
+
+  @override
+  Future<String?> read() async {
+    if (throwOnEverything) throw StateError('storage unavailable');
+    return _value;
+  }
+
+  @override
+  Future<void> write(String email) async {
+    if (throwOnEverything) throw StateError('storage unavailable');
+    writes++;
+    _value = email;
+  }
+
+  @override
+  Future<void> clear() async {
+    if (throwOnEverything) throw StateError('storage unavailable');
+    _value = null;
+  }
+}
+
