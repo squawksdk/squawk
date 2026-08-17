@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'capture/report_capture.dart';
 import 'device_context.dart';
 import 'log_buffer.dart';
+import 'reporter_email_store.dart';
 import 'squawk_report.dart';
 
 /// Holds the state the static API needs, independent of the widget tree.
@@ -30,6 +31,23 @@ class SquawkController {
   /// Swapped in tests so the plugins are never touched.
   DeviceContextCollector? collector;
 
+  /// Remembers the reporter's address between reports. Swapped in tests.
+  ReporterEmailStore emailStore =
+      SafeReporterEmailStore(InProcessReporterEmailStore());
+
+  /// The address to offer on the sheet: whatever the app already told us
+  /// about the signed-in user, else whatever the reporter last typed.
+  ///
+  /// Asking a signed-in tester for an email is asking a question the app has
+  /// already answered.
+  Future<String?> suggestedReporterEmail() async =>
+      _userEmail ?? await emailStore.read();
+
+  Future<void> rememberReporterEmail(String? email) async {
+    if (email == null) return;
+    await emailStore.write(email);
+  }
+
   void startCapturingLogs() => (_logs ??= LogBuffer()).start();
 
   void stopCapturingLogs() {
@@ -44,10 +62,16 @@ class SquawkController {
 
   void setMetadata(String key, Object? value) => _metadata[key] = value;
 
+  /// Forgets the identity, the metadata, and the remembered reporter address.
+  ///
+  /// The address matters here: QA devices get passed around, and without this
+  /// a logout would leave the previous tester's email prefilled on the next
+  /// person's report.
   void clearUser() {
     _userId = null;
     _userEmail = null;
     _metadata.clear();
+    emailStore.clear();
   }
 
   void mount(BuildContext context, ReportCapture capture) {
@@ -116,7 +140,12 @@ class SquawkController {
         logs: _logs?.entries ?? const [],
         device: await collector?.collect(),
       );
-      if (report != null) _lastReport.value = report;
+      if (report != null) {
+        _lastReport.value = report;
+        // Remembered only after a real submission — a dismissed sheet should
+        // not leave an address behind.
+        await rememberReporterEmail(report.reporterEmail);
+      }
       return report;
     } finally {
       _isCapturing.value = false;

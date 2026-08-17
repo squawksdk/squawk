@@ -146,6 +146,7 @@ class _LastReportCard extends StatelessWidget {
             Text('text: ${report.text ?? '(none)'}'),
             Text('user: ${report.userId ?? '(none)'} '
                 '${report.userEmail ?? ''}'),
+            Text('reporter email: ${report.reporterEmail ?? '(none)'}'),
             Text('metadata: ${report.metadata}'),
             Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
             Text('device: ${report.device?.deviceModel ?? '(unknown)'} '

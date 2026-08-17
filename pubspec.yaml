@@ -23,7 +23,6 @@ dependencies:
   package_info_plus: ">=8.0.0 <11.0.0"
   shake_gesture: ^2.1.0
   shake_gesture_platform_interface: ^1.0.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

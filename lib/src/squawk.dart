@@ -62,7 +62,8 @@ class Squawk extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final capture = _capture ?? FeedbackCapture();
+    final capture =
+        _capture ?? FeedbackCapture(askReporterEmail: options.askReporterEmail);
     return capture.wrap(
       _SquawkHost(capture: capture, options: options, child: child),
     );

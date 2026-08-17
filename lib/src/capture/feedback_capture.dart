@@ -13,9 +13,30 @@ import 'squawk_feedback_form.dart';
 /// it produces is converted to [SquawkReport] here, so no `feedback` type
 /// reaches the public API or the upload path.
 class FeedbackCapture implements ReportCapture {
+  const FeedbackCapture({this.askReporterEmail = true});
+
+  final bool askReporterEmail;
+
+  /// Fraction of the screen the sheet occupies when it opens.
+  ///
+  /// The package defaults to 0.25, which fits one text box. Squawk's form has
+  /// a description, a comment box, an optional email field and a button, and
+  /// at 0.25 the scrollable area collapses to nothing — the comment box, the
+  /// primary input, does not render at all.
+  double get _sheetHeight => askReporterEmail ? 0.34 : 0.28;
+
   @override
   Widget wrap(Widget child) => BetterFeedback(
-        feedbackBuilder: squawkFeedbackBuilder,
+        theme: FeedbackThemeData.light()
+            .copyWith(feedbackSheetHeight: _sheetHeight),
+        darkTheme: FeedbackThemeData.dark()
+            .copyWith(feedbackSheetHeight: _sheetHeight),
+        feedbackBuilder: (context, onSubmit, scrollController) =>
+            SquawkFeedbackForm(
+          onSubmit: onSubmit,
+          scrollController: scrollController,
+          askReporterEmail: askReporterEmail,
+        ),
         child: child,
       );
 
@@ -45,6 +66,8 @@ class FeedbackCapture implements ReportCapture {
         SquawkReport(
           screenshot: feedback.screenshot,
           text: feedback.text.isEmpty ? null : feedback.text,
+          reporterEmail:
+              feedback.extra?[SquawkFeedbackForm.emailExtraKey] as String?,
         ),
       );
     });
