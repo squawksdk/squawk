@@ -6,6 +6,10 @@ import 'device_context.dart';
 import 'log_buffer.dart';
 import 'reporter_email_store.dart';
 import 'squawk_report.dart';
+import 'upload/disk_spool_storage.dart';
+import 'upload/report_payload.dart';
+import 'upload/spool.dart';
+import 'upload/spool_storage.dart';
 
 /// Holds the state the static API needs, independent of the widget tree.
 ///
@@ -30,6 +34,10 @@ class SquawkController {
 
   /// Swapped in tests so the plugins are never touched.
   DeviceContextCollector? collector;
+
+  /// Where reports wait until they reach the backend. Null before a [Squawk]
+  /// widget has mounted, since it needs the app's API key to exist.
+  Spool? spool;
 
   /// Remembers the reporter's address between reports. Swapped in tests.
   ReporterEmailStore emailStore =
@@ -145,10 +153,41 @@ class SquawkController {
         // Remembered only after a real submission — a dismissed sheet should
         // not leave an address behind.
         await rememberReporterEmail(report.reporterEmail);
+        await _spoolForSending(report);
       }
       return report;
     } finally {
       _isCapturing.value = false;
+    }
+  }
+
+  /// Hands the report to the spool, which owns delivery from here.
+  ///
+  /// Failing to queue must not surface to the reporter: they have already
+  /// tapped submit and moved on, and a dialog about disk errors helps nobody.
+  Future<void> _spoolForSending(SquawkReport report) async {
+    final queue = spool;
+    if (queue == null) return;
+
+    try {
+      final capturedAt = DateTime.now();
+      await queue.enqueue(
+        SpooledReport(
+          id: spoolId(capturedAt, report.screenshot),
+          capturedAt: capturedAt,
+          metadata: wireMetadata(report),
+          screenshot: report.screenshot,
+        ),
+      );
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'squawk',
+          context: ErrorDescription('while queueing a report for delivery'),
+        ),
+      );
     }
   }
 
@@ -157,6 +196,7 @@ class SquawkController {
     _host = null;
     _isCapturing.value = false;
     _lastReport.value = null;
+    spool = null;
     stopCapturingLogs();
     clearUser();
   }

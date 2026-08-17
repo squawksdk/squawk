@@ -95,6 +95,9 @@ class Spool {
   /// has nothing to do.
   Future<bool> get isEmpty async => (await storage.list()).isEmpty;
 
+  /// How many reports are still undelivered.
+  Future<int> get pendingCount async => (await storage.list()).length;
+
   bool _isExpired(SpooledReport report) =>
       _now().difference(report.capturedAt) > maxAge;
 

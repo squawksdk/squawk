@@ -9,6 +9,7 @@ import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/device_context.dart';
 import 'package:squawk/src/reporter_email_store.dart';
 import 'package:squawk/src/upload/report_uploader.dart';
+import 'package:squawk/src/upload/spool.dart';
 import 'package:squawk/src/upload/spool_storage.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
@@ -104,6 +105,13 @@ void resetSquawk({DeviceContextCollector? collector}) {
     // Without this every test that submits or calls clearUser reaches for
     // shared_preferences, where there is no platform channel to answer.
     ..emailStore = InMemoryEmailStore()
+    // Same reason: a real spool would reach path_provider for a directory
+    // and connectivity_plus for a stream, and neither answers under test.
+    ..spool = Spool(
+      storage: InMemorySpoolStorage(),
+      uploader: FakeUploader(),
+      delay: (_) async {},
+    )
     ..collector = collector ??
         DeviceContextCollector(
           readDevice: () async => const DeviceInfo(
