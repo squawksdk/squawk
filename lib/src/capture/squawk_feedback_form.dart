@@ -77,6 +77,39 @@ class _SquawkFeedbackFormState extends State<SquawkFeedbackForm> {
     super.dispose();
   }
 
+  /// One decoration for every field, so the sheet reads as a single form
+  /// rather than a stack of unrelated inputs.
+  ///
+  /// Hints rather than floating labels: a label animating out of the field on
+  /// focus shifts everything below it, which is jarring in a sheet already
+  /// being resized by the keyboard.
+  InputDecoration _fieldDecoration(
+    ThemeData theme,
+    String hint, {
+    IconData? icon,
+  }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+    );
+
+    return InputDecoration(
+      hintText: hint,
+      isDense: true,
+      filled: true,
+      fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.4,
+      ),
+      prefixIcon: icon == null ? null : Icon(icon, size: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = FeedbackLocalizations.of(context);
@@ -86,29 +119,40 @@ class _SquawkFeedbackFormState extends State<SquawkFeedbackForm> {
     final theme = Theme.of(context);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           child: ListView(
             controller: widget.scrollController,
             padding: EdgeInsets.fromLTRB(
-              16,
+              20,
               widget.scrollController != null ? 20 : 16,
-              16,
+              20,
               0,
             ),
             children: [
               Text(
                 strings.feedbackDescriptionText,
                 maxLines: 2,
-                style: theme.textTheme.titleSmall,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
+              const SizedBox(height: 12),
               TextField(
                 key: SquawkFeedbackForm.textKey,
                 style: theme.textTheme.bodyMedium,
                 controller: _controller,
-                maxLines: 2,
+                // Grows with what the reporter writes instead of being pinned
+                // at two lines, and shrinks back when the keyboard takes the
+                // room.
                 minLines: 2,
-                textInputAction: TextInputAction.done,
+                maxLines: 4,
+                textInputAction: TextInputAction.newline,
+                keyboardType: TextInputType.multiline,
+                decoration: _fieldDecoration(
+                  theme,
+                  'Describe what went wrong',
+                ),
               ),
             ],
           ),
@@ -116,35 +160,41 @@ class _SquawkFeedbackFormState extends State<SquawkFeedbackForm> {
         // Outside the scroll area on purpose: the sheet opens collapsed and
         // its ListView builds lazily, so a field placed after the comment box
         // is never rendered until the reporter scrolls — and most will not.
-        if (widget.askReporterEmail)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-            child: TextField(
-              key: SquawkFeedbackForm.emailKey,
-              style: theme.textTheme.bodyMedium,
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'Your email (optional)',
-                isDense: true,
-              ),
-            ),
-          ),
         Padding(
-          // The whole point of this widget: keep the button clear of the
-          // system navigation bar and the home indicator.
-          padding: EdgeInsets.only(
-            bottom: 8 + MediaQuery.of(context).padding.bottom,
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            // Clears the system navigation bar and the home indicator. Goes
+            // to zero on its own when the keyboard covers them.
+            12 + MediaQuery.of(context).padding.bottom,
           ),
-          child: TextButton(
-            key: SquawkFeedbackForm.submitKey,
-            onPressed: _submit,
-            child: Text(
-              strings.submitButtonText,
-              style: TextStyle(color: theme.colorScheme.primary),
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.askReporterEmail) ...[
+                TextField(
+                  key: SquawkFeedbackForm.emailKey,
+                  style: theme.textTheme.bodyMedium,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submit(),
+                  decoration: _fieldDecoration(
+                    theme,
+                    'Your email (optional)',
+                    icon: Icons.alternate_email,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              FilledButton(
+                key: SquawkFeedbackForm.submitKey,
+                onPressed: _submit,
+                child: Text(strings.submitButtonText),
+              ),
+            ],
           ),
         ),
       ],

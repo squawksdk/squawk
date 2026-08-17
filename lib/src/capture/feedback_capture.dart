@@ -17,8 +17,20 @@ class FeedbackCapture implements ReportCapture {
 
   final bool askReporterEmail;
 
+  /// Fraction of the screen the sheet occupies when it opens.
+  ///
+  /// The package defaults to 0.25, which fits one text box. Squawk's form has
+  /// a description, a comment box, an optional email field and a button, and
+  /// at 0.25 the scrollable area collapses to nothing — the comment box, the
+  /// primary input, does not render at all.
+  double get _sheetHeight => askReporterEmail ? 0.34 : 0.28;
+
   @override
   Widget wrap(Widget child) => BetterFeedback(
+        theme: FeedbackThemeData.light()
+            .copyWith(feedbackSheetHeight: _sheetHeight),
+        darkTheme: FeedbackThemeData.dark()
+            .copyWith(feedbackSheetHeight: _sheetHeight),
         feedbackBuilder: (context, onSubmit, scrollController) =>
             SquawkFeedbackForm(
           onSubmit: onSubmit,

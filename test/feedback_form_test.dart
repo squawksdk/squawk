@@ -54,6 +54,21 @@ void main() {
     );
   });
 
+  // The sheet opens at a fraction of screen height. If the fixed area at the
+  // bottom grows past it, the scrollable region collapses to nothing and the
+  // comment box — the primary input — silently stops rendering.
+  testWidgets('every input renders in the collapsed sheet', (tester) async {
+    await tester.pumpWidget(hostApp());
+
+    unawaited(Squawk.show());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(SquawkFeedbackForm.textKey), findsOneWidget);
+    expect(find.byKey(SquawkFeedbackForm.emailKey), findsOneWidget);
+    expect(find.byKey(SquawkFeedbackForm.submitKey), findsOneWidget);
+    expect(find.text("What's wrong?"), findsOneWidget);
+  });
+
   testWidgets('submitting from the custom form still produces a report',
       (tester) async {
     giveDeviceANavBar(tester);
