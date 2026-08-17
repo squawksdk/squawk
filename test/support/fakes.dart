@@ -8,6 +8,8 @@ import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/device_context.dart';
 import 'package:squawk/src/reporter_email_store.dart';
+import 'package:squawk/src/upload/report_uploader.dart';
+import 'package:squawk/src/upload/spool_storage.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
 /// Stands in for the real capture UI, so the SDK can be exercised end to end
@@ -143,3 +145,46 @@ class InMemoryEmailStore implements ReporterEmailStore {
   }
 }
 
+
+/// Spool storage that lives in a map. Lets the spool's rules be tested
+/// without a filesystem.
+class InMemorySpoolStorage implements SpoolStorage {
+  final Map<String, SpooledReport> _entries = {};
+
+  /// Ids standing in for entries a crash left half-written.
+  final Set<String> incomplete = {};
+
+  @override
+  Future<List<SpooledReport>> list() async {
+    final all = _entries.values.toList()
+      ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+    return all;
+  }
+
+  @override
+  Future<void> save(SpooledReport report) async => _entries[report.id] = report;
+
+  @override
+  Future<void> delete(String id) async => _entries.remove(id);
+
+  @override
+  Future<void> sweepIncomplete() async => incomplete.clear();
+}
+
+/// Uploader that records what it was asked to send.
+class FakeUploader implements ReportUploader {
+  final List<SpooledReport> sent = [];
+
+  /// Applied to every report unless its id is in [failIds].
+  UploadOutcome outcome = UploadOutcome.sent;
+
+  /// Ids that should fail retryably regardless of [outcome].
+  Set<String> failIds = {};
+
+  @override
+  Future<UploadOutcome> upload(SpooledReport report) async {
+    if (failIds.contains(report.id)) return UploadOutcome.retryable;
+    if (outcome == UploadOutcome.sent) sent.add(report);
+    return outcome;
+  }
+}
