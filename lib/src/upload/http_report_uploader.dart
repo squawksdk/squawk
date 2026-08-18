@@ -27,8 +27,15 @@ class HttpReportUploader implements ReportUploader {
   final http.Client _client;
 
   /// A stalled request must not hold the drain open indefinitely; captive
-  /// portals accept a connection and then never answer.
+  /// portals accept a connection and then never answer. Covers the whole
+  /// exchange including the response body — a portal can also answer the
+  /// headers and then stall the body.
   final Duration timeout;
+
+  /// Whether the console has already been told the key was rejected, so a
+  /// spool full of reports produces the message once, not once per entry per
+  /// drain.
+  bool _keyRejectionReported = false;
 
   static const String screenshotField = 'screenshot';
   static const String metadataField = 'report';
@@ -52,22 +59,30 @@ class HttpReportUploader implements ReportUploader {
 
       final response = await _client
           .send(request)
-          .timeout(timeout)
-          .then(http.Response.fromStream);
+          .then(http.Response.fromStream)
+          .timeout(timeout);
 
-      if (response.statusCode == 401) _reportRejectedKey();
-      return _outcomeFor(response.statusCode);
+      final outcome = _outcomeFor(response.statusCode);
+      if (response.statusCode == 401) {
+        _reportRejectedKeyOnce();
+      } else if (outcome == UploadOutcome.sent) {
+        _keyRejectionReported = false;
+      }
+      return outcome;
     } catch (_) {
       // Anything thrown here is a transport problem — no route, DNS failure,
       // TLS error, timeout. None of them say the report is bad.
-      return UploadOutcome.retryable;
+      return UploadOutcome.unreachable;
     }
   }
 
   /// A rejected key is otherwise invisible: reports simply never arrive, and
   /// the developer has nothing to go on. Saying so in the console turns a
   /// silent failure into a one-line fix.
-  void _reportRejectedKey() {
+  void _reportRejectedKeyOnce() {
+    if (_keyRejectionReported) return;
+    _keyRejectionReported = true;
+
     FlutterError.reportError(
       FlutterErrorDetails(
         exception: StateError(

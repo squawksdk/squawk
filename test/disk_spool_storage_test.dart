@@ -31,7 +31,7 @@ void main() {
   test('a saved report survives being read back', () async {
     await storage.save(entry('a', attempts: 3));
 
-    final read = (await storage.list()).single;
+    final read = (await storage.load('a'))!;
 
     expect(read.id, 'a');
     expect(read.attempts, 3);
@@ -44,6 +44,36 @@ void main() {
     await storage.save(entry('early', at: DateTime.utc(2026, 8, 17, 6)));
 
     expect((await storage.list()).map((r) => r.id), ['early', 'late']);
+  });
+
+  test('recording an attempt survives being read back', () async {
+    await storage.save(entry('a'));
+    final at = DateTime.utc(2026, 8, 17, 13);
+
+    await storage.recordAttempt('a', attempts: 2, at: at);
+
+    final listed = (await storage.list()).single;
+    expect(listed.attempts, 2);
+    expect(listed.lastAttemptAt, at);
+    expect((await storage.load('a'))!.attempts, 2);
+  });
+
+  // Bumping a counter must not rewrite a multi-megabyte screenshot.
+  test('recording an attempt leaves the image file untouched', () async {
+    await storage.save(entry('a'));
+    final imageBefore = File('${dir.path}/a.png').lastModifiedSync();
+
+    await storage.recordAttempt(
+      'a',
+      attempts: 1,
+      at: DateTime.utc(2026, 8, 17, 13),
+    );
+
+    expect(File('${dir.path}/a.png').lastModifiedSync(), imageBefore);
+  });
+
+  test('loading an entry that does not exist gives null', () async {
+    expect(await storage.load('missing'), isNull);
   });
 
   test('delete removes both files', () async {
@@ -96,10 +126,17 @@ void main() {
   });
 
   test('ids sort by capture time', () {
-    final bytes = Uint8List.fromList([1, 2, 3]);
-    final earlier = spoolId(DateTime.utc(2026, 8, 17, 6), bytes);
-    final later = spoolId(DateTime.utc(2026, 8, 17, 18), bytes);
+    final earlier = spoolId(DateTime.utc(2026, 8, 17, 6));
+    final later = spoolId(DateTime.utc(2026, 8, 17, 18));
 
     expect(earlier.compareTo(later), lessThan(0));
+  });
+
+  // Two captures in the same microsecond would otherwise share an id and
+  // silently overwrite each other on disk.
+  test('ids differ even at the same instant', () {
+    final at = DateTime.utc(2026, 8, 17, 12);
+
+    expect(spoolId(at), isNot(spoolId(at)));
   });
 }

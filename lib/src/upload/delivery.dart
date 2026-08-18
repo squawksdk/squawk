@@ -7,16 +7,20 @@ import 'spool.dart';
 
 /// Decides when the spool gets a chance to send.
 ///
-/// Three moments, each covering a gap the others leave:
+/// Four moments, each covering a gap the others leave:
 ///
-/// - **capture** — the common case, handled by the spool's own enqueue
+/// - **capture** — the common case, handled by the spool's own enqueue; the
+///   spool's [Spool.onQueueChanged] then tells this class whether anything
+///   was left behind
 /// - **start-up** — a spool left over from a previous run
 /// - **connectivity returning** — the tester walks back into signal without
 ///   restarting the app
+/// - **a timer as a backstop**, which runs **only while something is
+///   waiting**. A timer that wakes to find an empty queue is battery spent on
+///   the host app's behalf, and Squawk has not earned that.
 ///
-/// Plus a timer as a backstop, which runs **only while something is waiting**.
-/// A timer that wakes to find an empty queue is battery spent on the host
-/// app's behalf, and Squawk has not earned that.
+/// Survives being stopped and started again: the widget that owns it can be
+/// remounted, and delivery picks up where it left off.
 class Delivery {
   Delivery({
     required this.spool,
@@ -45,7 +49,14 @@ class Delivery {
     if (_started) return;
     _started = true;
 
-    _connectivity = _connectivityChanges.listen((_) => _drainThenReschedule());
+    spool.onQueueChanged = () => unawaited(_rescheduleTimer());
+    _connectivity = _connectivityChanges.listen((event) {
+      // Losing connectivity is also an event, and draining then can only
+      // fail. Worse than pointless: enough of them would look like a report
+      // that can never be sent.
+      if (_isOffline(event)) return;
+      _drainThenReschedule();
+    });
 
     await spool.start();
     await _rescheduleTimer();
@@ -53,14 +64,23 @@ class Delivery {
 
   Future<void> stop() async {
     _started = false;
+    spool.onQueueChanged = null;
     _timer?.cancel();
     _timer = null;
-    await _connectivity?.cancel();
+    // Detached before the await: a remount can call start() while the cancel
+    // is in flight, and finishing with `_connectivity = null` here would
+    // silently discard the new subscription.
+    final connectivity = _connectivity;
     _connectivity = null;
+    await connectivity?.cancel();
   }
 
-  /// Called after anything is queued, so the backstop starts running.
-  Future<void> onEnqueued() => _rescheduleTimer();
+  static bool _isOffline(Object? event) => switch (event) {
+        ConnectivityResult.none => true,
+        final List<ConnectivityResult> results =>
+          results.every((r) => r == ConnectivityResult.none),
+        _ => false,
+      };
 
   Future<void> _drainThenReschedule() async {
     await spool.drain();
@@ -70,6 +90,11 @@ class Delivery {
   /// Runs the timer only while the spool has something in it.
   Future<void> _rescheduleTimer() async {
     final idle = await spool.isEmpty;
+
+    // Checked *after* the read: stop() can race the tail of an in-flight
+    // drain — or arrive while the queue was being read — and without this
+    // the timer stop() just cancelled would be recreated.
+    if (!_started) return;
 
     if (idle) {
       _timer?.cancel();

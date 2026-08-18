@@ -7,18 +7,28 @@ import 'package:squawk/src/upload/spool_storage.dart';
 
 import 'support/fakes.dart';
 
-SpooledReport entry(String id, {DateTime? at, int attempts = 0}) =>
+SpooledReport entry(
+  String id, {
+  DateTime? at,
+  int attempts = 0,
+  DateTime? lastAttemptAt,
+}) =>
     SpooledReport(
       id: id,
       capturedAt: at ?? DateTime(2026, 8, 17, 12),
       metadata: {'text': id},
       screenshot: Uint8List.fromList([1, 2, 3]),
       attempts: attempts,
+      lastAttemptAt: lastAttemptAt,
     );
 
 void main() {
   late InMemorySpoolStorage storage;
   late FakeUploader uploader;
+
+  /// The clock every spool in this file reads. Tests advance it instead of
+  /// sleeping: backoff here is a question of arithmetic, not of time passing.
+  var clock = DateTime(2026, 8, 17, 12);
 
   Spool spoolWith({
     int maxEntries = 50,
@@ -31,15 +41,13 @@ void main() {
         maxEntries: maxEntries,
         maxAge: maxAge,
         maxAttempts: maxAttempts,
-        // Tests must never sleep: a fixed real-clock wait already cost this
-        // suite a failure in one run out of four.
-        delay: (_) async {},
-        now: () => DateTime(2026, 8, 17, 12),
+        now: () => clock,
       );
 
   setUp(() {
     storage = InMemorySpoolStorage();
     uploader = FakeUploader();
+    clock = DateTime(2026, 8, 17, 12);
   });
 
   group('draining', () {
@@ -62,6 +70,7 @@ void main() {
       final remaining = await storage.list();
       expect(remaining.single.id, 'a');
       expect(remaining.single.attempts, 1, reason: 'the attempt was counted');
+      expect(remaining.single.lastAttemptAt, clock);
     });
 
     // A payload the server rejects can never succeed. Retrying it burns
@@ -94,6 +103,98 @@ void main() {
       await Future.wait([spool.drain(), spool.drain()]);
 
       expect(uploader.sent, hasLength(1));
+    });
+
+    // A file corrupted on disk must not fail every future drain on it.
+    test('an entry that cannot be loaded is dropped', () async {
+      await storage.save(entry('a'));
+      storage.unreadable.add('a');
+
+      await spoolWith().drain();
+
+      expect(uploader.sent, isEmpty);
+      expect(await storage.list(), isEmpty);
+    });
+  });
+
+  // Backoff never sleeps. An entry that is not due yet is skipped, so a drain
+  // always finishes promptly and every trigger — connectivity, timer, a new
+  // capture — gets an immediate answer instead of queueing behind a wait.
+  group('backoff without sleeping', () {
+    test('an entry is left alone until its backoff has passed', () async {
+      await storage.save(
+        entry('a', attempts: 1, lastAttemptAt: clock),
+      );
+
+      await spoolWith().drain();
+
+      expect(uploader.sent, isEmpty);
+      expect((await storage.list()).single.attempts, 1,
+          reason: 'skipping is not attempting');
+    });
+
+    test('an entry whose backoff has passed is retried', () async {
+      await storage.save(
+        entry(
+          'a',
+          attempts: 1,
+          lastAttemptAt: clock.subtract(const Duration(hours: 1)),
+        ),
+      );
+
+      await spoolWith().drain();
+
+      expect(uploader.sent.map((r) => r.id), ['a']);
+    });
+
+    // The whole point of not sleeping: a fresh report behind a backed-off one
+    // goes out now, not after the older entry's wait.
+    test('a fresh report is not held up by a backed-off one in front',
+        () async {
+      await storage.save(
+        entry('old', at: DateTime(2026, 8, 17, 6), attempts: 5,
+            lastAttemptAt: clock),
+      );
+      await storage.save(entry('fresh', at: DateTime(2026, 8, 17, 11)));
+
+      await spoolWith().drain();
+
+      expect(uploader.sent.map((r) => r.id), ['fresh']);
+    });
+  });
+
+  // A tester drifting in and out of signal generates transport failures that
+  // say nothing about the report. They must not eat into the attempt budget,
+  // or ordinary bad connectivity would get reports silently deleted.
+  group('transport failures', () {
+    test('do not burn an attempt', () async {
+      await storage.save(entry('a'));
+      uploader.outcome = UploadOutcome.unreachable;
+
+      await spoolWith().drain();
+
+      final remaining = (await storage.list()).single;
+      expect(remaining.attempts, 0);
+      expect(remaining.lastAttemptAt, clock,
+          reason: 'the time is still recorded, so the entry backs off');
+    });
+
+    test('still back the entry off before the next try', () async {
+      await storage.save(entry('a'));
+      uploader.outcome = UploadOutcome.unreachable;
+      final spool = spoolWith();
+      await spool.drain();
+
+      uploader.outcome = UploadOutcome.sent;
+      await spool.drain();
+
+      expect(uploader.sent, isEmpty,
+          reason: 'the same connectivity storm must not retry immediately');
+
+      clock = clock.add(const Duration(seconds: 10));
+      await spool.drain();
+
+      expect(uploader.sent.map((r) => r.id), ['a']);
     });
   });
 
@@ -156,6 +257,20 @@ void main() {
 
       expect(storage.incomplete, isEmpty);
       expect(uploader.sent.map((r) => r.id), ['a']);
+    });
+  });
+
+  group('telling the scheduler', () {
+    test('every drain reports back, so retries can be scheduled', () async {
+      await storage.save(entry('a'));
+      uploader.outcome = UploadOutcome.retryable;
+      final spool = spoolWith();
+      var told = 0;
+      spool.onQueueChanged = () => told++;
+
+      await spool.drain();
+
+      expect(told, 1);
     });
   });
 }
