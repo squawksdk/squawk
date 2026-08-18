@@ -84,12 +84,15 @@ class AnnotationCanvas extends StatelessWidget {
           // longer reach the pan callbacks that give the pen its dot.
           onTapUp: (d) {
             final point = toImage(d.localPosition);
-            if (controller.tool == AnnotationTool.text) {
-              onLabelRequested?.call(point);
-            } else {
-              controller
-                ..startStroke(point)
-                ..endStroke();
+            switch (controller.tool) {
+              case AnnotationTool.text:
+                onLabelRequested?.call(point);
+              case AnnotationTool.move:
+                controller.select(controller.annotationAt(point));
+              case AnnotationTool.pen || AnnotationTool.arrow:
+                controller
+                  ..startStroke(point)
+                  ..endStroke();
             }
           },
           onPanStart: (d) => controller.startStroke(toImage(d.localPosition)),
@@ -145,8 +148,44 @@ class _AnnotatedImagePainter extends CustomPainter {
     for (final annotation in controller.annotations) {
       annotation.draw(canvas);
     }
+    _drawSelection(canvas);
 
     canvas.restore();
+  }
+
+  /// The selection box and its resize handle. Preview chrome only — the
+  /// composite draws annotations and nothing else, so none of this can ever
+  /// reach the uploaded PNG.
+  void _drawSelection(Canvas canvas) {
+    final selected = controller.selected;
+    if (selected == null) return;
+
+    final rect = controller.selectionRectOf(selected);
+    final line = controller.strokeWidth * 0.45;
+    const blue = Color(0xFF448AFF);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(line * 3)),
+      Paint()
+        ..color = blue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = line,
+    );
+
+    final handle = rect.bottomRight;
+    canvas.drawCircle(
+      handle,
+      controller.strokeWidth * 1.6,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      handle,
+      controller.strokeWidth * 1.6,
+      Paint()
+        ..color = blue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = line,
+    );
   }
 
   @override

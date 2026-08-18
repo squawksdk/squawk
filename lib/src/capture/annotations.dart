@@ -24,6 +24,10 @@ sealed class Annotation {
   /// can be dragged off the picture and silently lost.
   void moveBy(Offset delta);
 
+  /// Scales the annotation about [anchor]. The controller clamps the factor
+  /// so nothing shrinks into an ungrabbable speck or grows past the picture.
+  void scaleBy(double factor, Offset anchor);
+
   /// The image-space box the annotation occupies.
   Rect get bounds;
 }
@@ -80,6 +84,23 @@ final class StrokeAnnotation implements Annotation {
       _points[i] += delta;
     }
     _path = _path.shift(delta);
+  }
+
+  /// Scales the shape only: the line keeps its weight, like resizing a
+  /// drawing rather than zooming into one.
+  @override
+  void scaleBy(double factor, Offset anchor) {
+    final path = Path()..moveTo(_points.first.dx, _points.first.dy);
+    for (var i = 0; i < _points.length; i++) {
+      _points[i] = anchor + (_points[i] - anchor) * factor;
+      if (i == 0) {
+        path.reset();
+        path.moveTo(_points[i].dx, _points[i].dy);
+      } else {
+        path.lineTo(_points[i].dx, _points[i].dy);
+      }
+    }
+    _path = path;
   }
 
   @override
@@ -159,6 +180,12 @@ final class ArrowAnnotation implements Annotation {
   }
 
   @override
+  void scaleBy(double factor, Offset anchor) {
+    _start = anchor + (_start - anchor) * factor;
+    _end = anchor + (_end - anchor) * factor;
+  }
+
+  @override
   Rect get bounds => Rect.fromPoints(_start, _end).inflate(strokeWidth * 2);
 
   double get length => (end - start).distance;
@@ -206,8 +233,9 @@ final class TextAnnotation implements Annotation {
     required Offset position,
     required String text,
     required this.color,
-    required this.fontSize,
+    required double fontSize,
   })  : _position = position,
+        _fontSize = fontSize,
         _text = text;
 
   Offset _position;
@@ -217,8 +245,11 @@ final class TextAnnotation implements Annotation {
 
   final Color color;
 
-  /// In image pixels, like every annotation measurement.
-  final double fontSize;
+  double _fontSize;
+
+  /// In image pixels, like every annotation measurement. Resizing a note
+  /// means changing this.
+  double get fontSize => _fontSize;
 
   String _text;
   String get text => _text;
@@ -260,6 +291,13 @@ final class TextAnnotation implements Annotation {
 
   @override
   void moveBy(Offset delta) => _position += delta;
+
+  @override
+  void scaleBy(double factor, Offset anchor) {
+    _fontSize *= factor;
+    _position = anchor + (_position - anchor) * factor;
+    _painter = null;
+  }
 
   @override
   Rect get bounds => position & _laidOut.size;
@@ -320,6 +358,38 @@ class AnnotationController extends ChangeNotifier {
   /// the image edge mid-gesture.
   Annotation? _moving;
   Offset _movePoint = Offset.zero;
+
+  Annotation? _selected;
+  bool _resizing = false;
+
+  /// The annotation whose selection box and resize handle are showing.
+  Annotation? get selected => _selected;
+
+  /// Where the resize handle sits, in image pixels — the selection box's
+  /// bottom-right corner. The painter draws it here and the controller
+  /// hit-tests it here, so the dot the reporter sees is the dot that works.
+  Offset? get selectionHandle => _selected == null
+      ? null
+      : selectionRectOf(_selected!).bottomRight;
+
+  /// The fixed corner a resize scales about — opposite the handle.
+  Offset? get selectionAnchor =>
+      _selected == null ? null : selectionRectOf(_selected!).topLeft;
+
+  /// The box drawn around a selected annotation, padded off its edges.
+  Rect selectionRectOf(Annotation annotation) =>
+      annotation.bounds.inflate(strokeWidth * 1.5);
+
+  void select(Annotation? annotation) {
+    if (_selected == annotation) return;
+    _selected = annotation;
+    notifyListeners();
+  }
+
+  bool _isOnHandle(Offset point) {
+    final handle = selectionHandle;
+    return handle != null && (point - handle).distance <= strokeWidth * 5;
+  }
   Color _color = annotationColors.first;
   AnnotationTool _tool = AnnotationTool.pen;
 
@@ -328,7 +398,10 @@ class AnnotationController extends ChangeNotifier {
   bool get hasAnnotations => _annotations.isNotEmpty;
 
   bool get canUndo =>
-      _annotations.isNotEmpty && _active == null && _moving == null;
+      _annotations.isNotEmpty &&
+      _active == null &&
+      _moving == null &&
+      !_resizing;
 
   Color get color => _color;
   set color(Color value) {
@@ -341,6 +414,9 @@ class AnnotationController extends ChangeNotifier {
   set tool(AnnotationTool value) {
     if (_tool == value) return;
     _tool = value;
+    // The selection box belongs to the move tool; a drawing tool showing it
+    // would suggest drags affect the selected shape when they draw instead.
+    if (value != AnnotationTool.move) _selected = null;
     notifyListeners();
   }
 
@@ -350,8 +426,20 @@ class AnnotationController extends ChangeNotifier {
     if (_active != null || _moving != null) return;
 
     if (_tool == AnnotationTool.move) {
+      if (_isOnHandle(imagePoint)) {
+        _resizing = true;
+        _movePoint = imagePoint;
+        notifyListeners();
+        return;
+      }
       _moving = annotationAt(imagePoint);
+      // Grabbing is selecting: the box follows the drawing under the
+      // finger. A drag on empty canvas leaves the selection alone.
+      if (_moving != null && _moving != _selected) {
+        _selected = _moving;
+      }
       _movePoint = imagePoint;
+      notifyListeners();
       return;
     }
 
@@ -378,6 +466,25 @@ class AnnotationController extends ChangeNotifier {
   }
 
   void extendStroke(Offset imagePoint) {
+    if (_resizing && _selected != null) {
+      final anchor = selectionAnchor!;
+      final before = (_movePoint - anchor).distance;
+      final after = (imagePoint - anchor).distance;
+      _movePoint = imagePoint;
+      if (before < strokeWidth) return;
+
+      final selected = _selected!;
+      final factor = after / before;
+      selected.scaleBy(factor, anchor);
+      // Undone rather than clamped: reverting the step the moment the size
+      // leaves the acceptable range stops it exactly at the limit.
+      if (!_acceptableSize(selected.bounds)) {
+        selected.scaleBy(1 / factor, anchor);
+      }
+      notifyListeners();
+      return;
+    }
+
     if (_moving case final moving?) {
       final delta = imagePoint - _movePoint;
       _movePoint = imagePoint;
@@ -411,8 +518,15 @@ class AnnotationController extends ChangeNotifier {
     }
     _active = null;
     _moving = null;
+    _resizing = false;
     notifyListeners();
   }
+
+  /// Small enough to stay on the picture, big enough to grab again.
+  bool _acceptableSize(Rect bounds) =>
+      bounds.longestSide >= strokeWidth * 5 &&
+      bounds.longestSide <= imageSize.longestSide &&
+      bounds.overlaps(Offset.zero & imageSize);
 
   /// The topmost annotation of any kind under an image-space point.
   Annotation? annotationAt(Offset imagePoint) {
@@ -470,7 +584,8 @@ class AnnotationController extends ChangeNotifier {
   /// under the reporter's finger would leave the drag orphaned.
   void undo() {
     if (!canUndo) return;
-    _annotations.removeLast();
+    final removed = _annotations.removeLast();
+    if (_selected == removed) _selected = null;
     notifyListeners();
   }
 }

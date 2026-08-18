@@ -308,6 +308,33 @@ void main() {
           reason: 'moving must not draw anything new');
     });
 
+    testWidgets('in move mode a tap selects and an empty tap clears',
+        (tester) async {
+      await openCapture(tester);
+      final controller = canvasOf(tester).controller;
+
+      await tester.tap(find.byKey(CaptureOverlay.arrowToolKey));
+      await tester.pumpAndSettle();
+      final canvasCenter = tester.getCenter(find.byType(AnnotationCanvas));
+      await tester.timedDragFrom(
+        canvasCenter - const Offset(60, 0),
+        const Offset(120, 0),
+        const Duration(milliseconds: 200),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(CaptureOverlay.moveToolKey));
+      await tester.pumpAndSettle();
+      await tester.tapAt(canvasCenter);
+      await tester.pumpAndSettle();
+      expect(controller.selected, same(controller.annotations.single));
+
+      final canvasRect = tester.getRect(find.byType(AnnotationCanvas));
+      await tester.tapAt(canvasRect.topLeft + const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(controller.selected, isNull);
+    });
+
     testWidgets('tapping a color dot changes the marker', (tester) async {
       await openCapture(tester);
       final controller = canvasOf(tester).controller;

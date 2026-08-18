@@ -188,6 +188,9 @@ class _CaptureOverlayState extends State<CaptureOverlay>
 
   Future<void> _submit() async {
     if (_submitting) return;
+    // The selection box is preview chrome; it must not sit on the shot the
+    // reporter watches while the report is put together.
+    widget.annotations.select(null);
     setState(() => _submitting = true);
 
     await widget.onSubmit(_text.text, ReporterEmail.normalise(_email.text));
@@ -384,7 +387,8 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                               AnnotationTool.text =>
                                 'Tap the screenshot to add a note',
                               AnnotationTool.move =>
-                                'Drag a drawing to move it',
+                                'Drag a drawing to move it — the corner '
+                                    'dot resizes',
                               _ =>
                                 'Draw on the screenshot to point at the problem',
                             },

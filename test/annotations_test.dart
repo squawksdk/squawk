@@ -386,6 +386,176 @@ void main() {
     });
   });
 
+  group('selecting and resizing', () {
+    AnnotationController moveController() =>
+        controllerWith()..tool = AnnotationTool.move;
+
+    ArrowAnnotation arrowAcross(AnnotationController controller) {
+      controller.tool = AnnotationTool.arrow;
+      controller.startStroke(const Offset(200, 300));
+      controller.extendStroke(const Offset(400, 300));
+      controller.endStroke();
+      controller.tool = AnnotationTool.move;
+      return controller.annotations.single as ArrowAnnotation;
+    }
+
+    test('grabbing a drawing selects it; tapping empty space clears', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+
+      controller.startStroke(const Offset(300, 300));
+      controller.endStroke();
+      expect(controller.selected, same(arrow));
+
+      controller.select(null);
+      expect(controller.selected, isNull);
+    });
+
+    test('leaving move mode drops the selection', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+
+      controller.tool = AnnotationTool.pen;
+
+      expect(controller.selected, isNull);
+    });
+
+    test('undoing the selected drawing deselects it', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+
+      controller.undo();
+
+      expect(controller.selected, isNull);
+      expect(controller.hasAnnotations, isFalse);
+    });
+
+    test('dragging the corner handle grows the drawing', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+      final lengthBefore = arrow.length;
+      final handle = controller.selectionHandle!;
+
+      controller.startStroke(handle);
+      controller.extendStroke(
+        controller.selectionAnchor! +
+            (handle - controller.selectionAnchor!) * 1.5,
+      );
+      controller.endStroke();
+
+      expect(arrow.length, greaterThan(lengthBefore));
+    });
+
+    test('dragging the handle inward shrinks it', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+      final lengthBefore = arrow.length;
+      final handle = controller.selectionHandle!;
+
+      controller.startStroke(handle);
+      controller.extendStroke(
+        controller.selectionAnchor! +
+            (handle - controller.selectionAnchor!) * 0.6,
+      );
+      controller.endStroke();
+
+      expect(arrow.length, lessThan(lengthBefore));
+    });
+
+    test('a drawing cannot be shrunk into an ungrabbable speck', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+      final handle = controller.selectionHandle!;
+
+      controller.startStroke(handle);
+      controller.extendStroke(
+        controller.selectionAnchor! +
+            (handle - controller.selectionAnchor!) * 0.01,
+      );
+      controller.endStroke();
+
+      expect(arrow.length, greaterThanOrEqualTo(controller.strokeWidth * 3),
+          reason: 'the resize stops at a grabbable minimum');
+    });
+
+    test('a drawing cannot be grown past the picture', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+      final handle = controller.selectionHandle!;
+
+      controller.startStroke(handle);
+      controller.extendStroke(
+        controller.selectionAnchor! +
+            (handle - controller.selectionAnchor!) * 50,
+      );
+      controller.endStroke();
+
+      expect(
+        arrow.bounds.longestSide,
+        lessThanOrEqualTo(const Size(1000, 1000).longestSide),
+      );
+    });
+
+    test('resizing a note changes its text size', () {
+      final controller = controllerWith()..tool = AnnotationTool.text;
+      final label = controller.addLabel(const Offset(400, 400), 'resize me');
+      final sizeBefore = label!.fontSize;
+      controller.tool = AnnotationTool.move;
+      controller.select(label);
+      final handle = controller.selectionHandle!;
+
+      controller.startStroke(handle);
+      controller.extendStroke(
+        controller.selectionAnchor! +
+            (handle - controller.selectionAnchor!) * 1.5,
+      );
+      controller.endStroke();
+
+      expect(label.fontSize, greaterThan(sizeBefore));
+    });
+
+    test('resizing a stroke scales its shape, not its line weight', () {
+      final controller = controllerWith();
+      controller.startStroke(const Offset(300, 300));
+      controller.extendStroke(const Offset(500, 300));
+      controller.endStroke();
+      final stroke = controller.annotations.single as StrokeAnnotation;
+      controller.tool = AnnotationTool.move;
+      controller.select(stroke);
+      final handle = controller.selectionHandle!;
+
+      controller.startStroke(handle);
+      controller.extendStroke(
+        controller.selectionAnchor! +
+            (handle - controller.selectionAnchor!) * 2,
+      );
+      controller.endStroke();
+
+      final width =
+          stroke.points.last.dx - stroke.points.first.dx;
+      expect(width, greaterThan(300), reason: 'the shape grew');
+      expect(stroke.strokeWidth, controller.strokeWidth,
+          reason: 'the line weight did not');
+    });
+
+    test('undo is refused mid-resize', () {
+      final controller = moveController();
+      final arrow = arrowAcross(controller);
+      controller.select(arrow);
+
+      controller.startStroke(controller.selectionHandle!);
+      expect(controller.canUndo, isFalse);
+      controller.endStroke();
+      expect(controller.canUndo, isTrue);
+    });
+  });
+
   test('distance to a segment measures perpendicular or to the ends', () {
     const a = Offset(0, 0);
     const b = Offset(100, 0);
