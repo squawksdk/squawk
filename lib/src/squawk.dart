@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:shake_gesture/shake_gesture.dart';
 
@@ -7,6 +9,10 @@ import 'device_context.dart';
 import 'feedback_button.dart';
 import 'squawk_controller.dart';
 import 'platform_readers.dart';
+import 'upload/delivery.dart';
+import 'upload/disk_spool_storage.dart';
+import 'upload/http_report_uploader.dart';
+import 'upload/spool.dart';
 import 'squawk_options.dart';
 
 /// Wrap your app in this and a shake opens the report sheet.
@@ -29,7 +35,9 @@ class Squawk extends StatelessWidget {
     required this.child,
     this.options = const SquawkOptions(),
     @visibleForTesting ReportCapture? capture,
-  }) : _capture = capture;
+    @visibleForTesting Uri? endpoint,
+  })  : _capture = capture,
+        _endpoint = endpoint;
 
   /// The project's publishable API key, from project settings on
   /// squawksdk.com.
@@ -39,6 +47,15 @@ class Squawk extends StatelessWidget {
   final Widget child;
 
   final ReportCapture? _capture;
+  final Uri? _endpoint;
+
+  /// Where reports are sent.
+  ///
+  /// Not configurable by the host app on purpose: there is no self-hosted
+  /// backend, so an option here would only be a way to point reports
+  /// somewhere they cannot arrive.
+  static final Uri defaultEndpoint =
+      Uri.parse('https://ingest.squawksdk.com/v1/squawks');
 
   /// Opens the report sheet.
   ///
@@ -65,7 +82,13 @@ class Squawk extends StatelessWidget {
     final capture =
         _capture ?? FeedbackCapture(askReporterEmail: options.askReporterEmail);
     return capture.wrap(
-      _SquawkHost(capture: capture, options: options, child: child),
+      _SquawkHost(
+        capture: capture,
+        options: options,
+        apiKey: apiKey,
+        endpoint: _endpoint ?? defaultEndpoint,
+        child: child,
+      ),
     );
   }
 }
@@ -79,11 +102,15 @@ class _SquawkHost extends StatefulWidget {
   const _SquawkHost({
     required this.capture,
     required this.options,
+    required this.apiKey,
+    required this.endpoint,
     required this.child,
   });
 
   final ReportCapture capture;
   final SquawkOptions options;
+  final String apiKey;
+  final Uri endpoint;
   final Widget child;
 
   @override
@@ -91,6 +118,8 @@ class _SquawkHost extends StatefulWidget {
 }
 
 class _SquawkHostState extends State<_SquawkHost> {
+  Delivery? _delivery;
+
   @override
   void initState() {
     super.initState();
@@ -103,10 +132,35 @@ class _SquawkHostState extends State<_SquawkHost> {
     if (widget.options.captureLogs) {
       SquawkController.instance.startCapturingLogs();
     }
+    _startDelivery();
+  }
+
+  /// Builds the spool and sends anything a previous run left behind.
+  ///
+  /// Deliberately not awaited: the host app's first frame must not wait on
+  /// disk or on a network call, and a failure here is a Squawk problem rather
+  /// than something their app should notice.
+  void _startDelivery() {
+    if (SquawkController.instance.spool != null) return;
+
+    final spool = Spool(
+      storage: DiskSpoolStorage(),
+      uploader: HttpReportUploader(
+        apiKey: widget.apiKey,
+        endpoint: widget.endpoint,
+      ),
+    );
+    SquawkController.instance.spool = spool;
+
+    final delivery = Delivery(spool: spool);
+    _delivery = delivery;
+    unawaited(delivery.start());
   }
 
   @override
   void dispose() {
+    unawaited(_delivery?.stop());
+    _delivery = null;
     SquawkController.instance.stopCapturingLogs();
     SquawkController.instance.unmount(context);
     super.dispose();

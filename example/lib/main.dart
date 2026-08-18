@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:squawk/squawk.dart';
 // Demo-only: reports currently stop at a stubbed sink inside the SDK because
@@ -6,6 +8,8 @@ import 'package:squawk/squawk.dart';
 // real destination.
 // ignore: implementation_imports
 import 'package:squawk/src/squawk_controller.dart';
+// ignore: implementation_imports
+import 'package:squawk/src/upload/spool.dart';
 
 void main() {
   runApp(
@@ -115,6 +119,8 @@ class _DemoHomeState extends State<DemoHome> {
             'screenshot something recognisable to draw on.',
           ),
           const Divider(height: 40),
+          const _SpoolCard(),
+          const Divider(height: 40),
           const _LastReportCard(),
         ],
       ),
@@ -175,6 +181,70 @@ class _LastReportCard extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Shows what is still waiting to be delivered.
+///
+/// Without this a device run cannot tell a successful send from the SDK
+/// quietly doing nothing — everything after submit happens in the background.
+class _SpoolCard extends StatefulWidget {
+  const _SpoolCard();
+
+  @override
+  State<_SpoolCard> createState() => _SpoolCardState();
+}
+
+class _SpoolCardState extends State<_SpoolCard> {
+  Timer? _poll;
+  int _waiting = 0;
+  String _lastChecked = '—';
+
+  @override
+  void initState() {
+    super.initState();
+    _poll = Timer.periodic(const Duration(seconds: 1), (_) => _refresh());
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    final Spool? spool = SquawkController.instance.spool;
+    if (spool == null) return;
+
+    final waiting = await spool.pendingCount;
+    if (!mounted) return;
+    setState(() {
+      _waiting = waiting;
+      _lastChecked = DateTime.now().toIso8601String().substring(11, 19);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Delivery', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          _waiting == 0
+              ? 'Nothing waiting — everything captured has been sent or dropped.'
+              : '$_waiting report(s) still queued, retrying in the background.',
+        ),
+        Text('checked at $_lastChecked', style: const TextStyle(fontSize: 11)),
+        const SizedBox(height: 8),
+        FilledButton.tonal(
+          onPressed: () => SquawkController.instance.spool?.drain(),
+          child: const Text('Try sending now'),
+        ),
+      ],
     );
   }
 }
