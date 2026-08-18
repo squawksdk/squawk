@@ -1,0 +1,17 @@
+Squawk
+Copyright 2026 Malshan Perera
+
+This package includes code derived from the "feedback" Flutter package
+(https://pub.dev/packages/feedback), copyright the feedback authors and
+contributors, licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0).
+
+Derived files carry a comment naming their origin and have been modified:
+
+  lib/src/capture/screenshot_boundary.dart
+    derived from lib/src/screenshot.dart
+
+The freehand-stroke input handling in lib/src/capture/annotations.dart and
+lib/src/capture/annotation_canvas.dart follows the approach of
+lib/src/painter.dart from the same package, rewritten for image-space
+coordinates.
