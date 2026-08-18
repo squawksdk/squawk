@@ -14,7 +14,14 @@ import 'package:squawk/src/upload/spool.dart';
 void main() {
   runApp(
     Squawk(
-      apiKey: 'sq_test_placeholder',
+      // Passed at run time so no real key lives in this open-source repo:
+      //   flutter run --dart-define=SQUAWK_API_KEY=sqk_yourkey
+      // Without it the SDK still captures and spools; uploads retry as 401s
+      // until a real key arrives, which is itself a useful thing to watch.
+      apiKey: const String.fromEnvironment(
+        'SQUAWK_API_KEY',
+        defaultValue: 'sqk_example_placeholder',
+      ),
       options: const SquawkOptions(
         // On so the demo can be triggered without shaking, e.g. on a
         // simulator or while the phone is tethered.
