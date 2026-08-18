@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:shake_gesture/shake_gesture.dart';
 
-import 'capture/feedback_capture.dart';
 import 'capture/report_capture.dart';
+import 'capture/squawk_capture.dart';
 import 'device_context.dart';
 import 'feedback_button.dart';
 import 'squawk_controller.dart';
@@ -80,7 +80,7 @@ class Squawk extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final capture =
-        _capture ?? FeedbackCapture(askReporterEmail: options.askReporterEmail);
+        _capture ?? SquawkCapture(askReporterEmail: options.askReporterEmail);
     return capture.wrap(
       _SquawkHost(
         capture: capture,
