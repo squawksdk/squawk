@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -107,17 +108,68 @@ void main() {
       expect(await outcomeOf(503), UploadOutcome.retryable);
     });
 
-    // No route, DNS failure, TLS error. None of these say the report is bad.
-    test('a transport failure is retryable', () async {
+    // No route, DNS failure, TLS error. None of these say the report is
+    // bad — and none of them reached the server, so the spool must not
+    // count them against the report's attempt budget.
+    test('a transport failure is unreachable, not a refusal', () async {
       final uploader = HttpReportUploader(
         apiKey: 'k',
         endpoint: Uri.parse('https://example.test/v1/squawks'),
         client: MockClient((_) async => throw const SocketExceptionStub()),
       );
 
-      expect(await uploader.upload(report), UploadOutcome.retryable);
+      expect(await uploader.upload(report), UploadOutcome.unreachable);
+    });
+
+    // A captive portal can answer the headers and then stall the body. The
+    // timeout has to cover the whole exchange, or the drain hangs forever
+    // holding its single-flight guard — bricking the spool until restart.
+    test('a response whose body never arrives times out as unreachable',
+        () async {
+      final uploader = HttpReportUploader(
+        apiKey: 'k',
+        endpoint: Uri.parse('https://example.test/v1/squawks'),
+        client: StalledBodyClient(),
+        timeout: const Duration(milliseconds: 50),
+      );
+
+      expect(await uploader.upload(report), UploadOutcome.unreachable);
     });
   });
+
+  // With a spool full of reports, every drain retries each of them. One bad
+  // key must produce one console message, not one per entry per drain.
+  test('a bad key is reported once, not once per queued report', () async {
+    final errors = <FlutterErrorDetails>[];
+    final previous = FlutterError.onError;
+    FlutterError.onError = errors.add;
+    addTearDown(() => FlutterError.onError = previous);
+
+    final statuses = [401, 401, 200, 401];
+    final uploader = HttpReportUploader(
+      apiKey: 'k',
+      endpoint: Uri.parse('https://example.test/v1/squawks'),
+      client: MockClient(
+        (_) async => http.Response('', statuses.removeAt(0)),
+      ),
+    );
+
+    await uploader.upload(report);
+    await uploader.upload(report);
+    expect(errors, hasLength(1), reason: 'the repeat 401 stays quiet');
+
+    await uploader.upload(report);
+    await uploader.upload(report);
+    expect(errors, hasLength(2),
+        reason: 'a key gone bad after working is news again');
+  });
+}
+
+/// Accepts the request, answers 200, and then never delivers a byte of body.
+class StalledBodyClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async =>
+      http.StreamedResponse(StreamController<List<int>>().stream, 200);
 }
 
 class SocketExceptionStub implements Exception {

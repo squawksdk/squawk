@@ -109,4 +109,16 @@ void main() {
     expect(capture.captureCount, 0);
     expect(errors, hasLength(1));
   });
+
+  testWidgets('a metadata value JSON cannot carry is kept as text, not lost',
+      (tester) async {
+    // A DateTime here used to throw while the report was being saved for
+    // upload — after the reporter had already tapped submit.
+    Squawk.setMetadata('startedAt', DateTime.utc(2026, 8, 17, 12));
+
+    await tester.pumpWidget(app(FakeCapture(result: reportWith())));
+    final report = await SquawkController.instance.show();
+
+    expect(report!.metadata['startedAt'], '2026-08-17 12:00:00.000Z');
+  });
 }

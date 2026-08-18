@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -6,6 +8,7 @@ import 'device_context.dart';
 import 'log_buffer.dart';
 import 'reporter_email_store.dart';
 import 'squawk_report.dart';
+import 'upload/delivery.dart';
 import 'upload/disk_spool_storage.dart';
 import 'upload/report_payload.dart';
 import 'upload/spool.dart';
@@ -37,7 +40,13 @@ class SquawkController {
 
   /// Where reports wait until they reach the backend. Null before a [Squawk]
   /// widget has mounted, since it needs the app's API key to exist.
+  ///
+  /// Outlives the widget on purpose: a remount must not lose queued reports.
   Spool? spool;
+
+  /// Schedules when the spool sends. Kept here beside the spool so a
+  /// remounted widget restarts the same delivery instead of orphaning it.
+  Delivery? delivery;
 
   /// Remembers the reporter's address between reports. Swapped in tests.
   ReporterEmailStore emailStore =
@@ -68,7 +77,20 @@ class SquawkController {
     _userEmail = email;
   }
 
-  void setMetadata(String key, Object? value) => _metadata[key] = value;
+  /// A value JSON cannot carry would otherwise throw while saving the
+  /// report — after the reporter has tapped submit — and lose it. Falling
+  /// back to toString here keeps the report and still says something useful.
+  void setMetadata(String key, Object? value) =>
+      _metadata[key] = _jsonEncodable(value);
+
+  static Object? _jsonEncodable(Object? value) {
+    try {
+      jsonEncode(value);
+      return value;
+    } catch (_) {
+      return value.toString();
+    }
+  }
 
   /// Forgets the identity, the metadata, and the remembered reporter address.
   ///
@@ -173,7 +195,7 @@ class SquawkController {
       final capturedAt = DateTime.now();
       await queue.enqueue(
         SpooledReport(
-          id: spoolId(capturedAt, report.screenshot),
+          id: spoolId(capturedAt),
           capturedAt: capturedAt,
           metadata: wireMetadata(report),
           screenshot: report.screenshot,
@@ -197,6 +219,7 @@ class SquawkController {
     _isCapturing.value = false;
     _lastReport.value = null;
     spool = null;
+    delivery = null;
     stopCapturingLogs();
     clearUser();
   }

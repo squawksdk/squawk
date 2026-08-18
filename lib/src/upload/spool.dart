@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'backoff.dart';
 import 'report_uploader.dart';
 import 'spool_storage.dart';
@@ -17,10 +15,8 @@ class Spool {
     this.maxEntries = 50,
     this.maxAge = const Duration(days: 7),
     this.maxAttempts = 10,
-    Future<void> Function(Duration)? delay,
     DateTime Function()? now,
-  })  : _delay = delay ?? Future<void>.delayed,
-        _now = now ?? DateTime.now;
+  }) : _now = now ?? DateTime.now;
 
   final SpoolStorage storage;
   final ReportUploader uploader;
@@ -33,12 +29,15 @@ class Spool {
   /// A report older than this describes a build nobody is running now.
   final Duration maxAge;
 
-  /// Attempts before an entry is abandoned, so one report the server always
-  /// rejects cannot follow the reporter around forever.
+  /// Server refusals before an entry is abandoned, so one report the server
+  /// always answers "not now" to cannot follow the reporter around forever.
   final int maxAttempts;
 
-  final Future<void> Function(Duration) _delay;
   final DateTime Function() _now;
+
+  /// Told after every drain, so whoever schedules retries can see whether the
+  /// queue emptied or something is still waiting.
+  void Function()? onQueueChanged;
 
   /// Guards against two triggers draining at once — capture, start-up,
   /// connectivity and the timer can all fire together, and without this the
@@ -58,36 +57,59 @@ class Spool {
     await drain();
   }
 
+  /// Tries to send everything that is due.
+  ///
+  /// Never sleeps: an entry whose backoff has not passed is skipped, not
+  /// waited for, so a drain finishes promptly whatever the queue holds and a
+  /// fresh report never waits behind an older one's backoff.
   Future<void> drain() async {
     if (_draining) return;
     _draining = true;
     try {
-      for (final report in await storage.list()) {
-        if (_isExpired(report)) {
-          await storage.delete(report.id);
+      for (final entry in await storage.list()) {
+        if (_isExpired(entry)) {
+          await storage.delete(entry.id);
+          continue;
+        }
+        if (!_isDue(entry)) continue;
+
+        final report = await storage.load(entry.id);
+        if (report == null) {
+          await storage.delete(entry.id);
           continue;
         }
 
-        if (report.attempts > 0) await _delay(backoff.delayFor(report.attempts));
-
-        final outcome = await uploader.upload(report);
-        switch (outcome) {
+        switch (await uploader.upload(report)) {
           case UploadOutcome.sent:
           case UploadOutcome.rejected:
-            await storage.delete(report.id);
+            await storage.delete(entry.id);
           case UploadOutcome.retryable:
-            final tried = report.withAttempt();
+            final attempts = entry.attempts + 1;
             // Move on to the next entry either way: one report the server
             // keeps refusing must not stop everything queued behind it.
-            if (tried.attempts >= maxAttempts) {
-              await storage.delete(report.id);
+            if (attempts >= maxAttempts) {
+              await storage.delete(entry.id);
             } else {
-              await storage.save(tried);
+              await storage.recordAttempt(
+                entry.id,
+                attempts: attempts,
+                at: _now(),
+              );
             }
+          case UploadOutcome.unreachable:
+            // The server never saw it, so the attempt is not counted — only
+            // the time is, so one connectivity storm cannot retry the same
+            // entry over and over.
+            await storage.recordAttempt(
+              entry.id,
+              attempts: entry.attempts,
+              at: _now(),
+            );
         }
       }
     } finally {
       _draining = false;
+      onQueueChanged?.call();
     }
   }
 
@@ -98,8 +120,14 @@ class Spool {
   /// How many reports are still undelivered.
   Future<int> get pendingCount async => (await storage.list()).length;
 
-  bool _isExpired(SpooledReport report) =>
-      _now().difference(report.capturedAt) > maxAge;
+  bool _isExpired(SpoolEntry entry) =>
+      _now().difference(entry.capturedAt) > maxAge;
+
+  bool _isDue(SpoolEntry entry) {
+    final last = entry.lastAttemptAt;
+    if (last == null) return true;
+    return !_now().isBefore(last.add(backoff.delayFor(entry.attempts)));
+  }
 
   Future<void> _evictOverflow() async {
     final entries = await storage.list();

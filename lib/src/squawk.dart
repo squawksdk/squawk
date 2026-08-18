@@ -118,8 +118,6 @@ class _SquawkHost extends StatefulWidget {
 }
 
 class _SquawkHostState extends State<_SquawkHost> {
-  Delivery? _delivery;
-
   @override
   void initState() {
     super.initState();
@@ -135,32 +133,31 @@ class _SquawkHostState extends State<_SquawkHost> {
     _startDelivery();
   }
 
-  /// Builds the spool and sends anything a previous run left behind.
+  /// Starts delivery and sends anything a previous run left behind.
   ///
   /// Deliberately not awaited: the host app's first frame must not wait on
   /// disk or on a network call, and a failure here is a Squawk problem rather
   /// than something their app should notice.
+  ///
+  /// The spool and delivery live on the controller, not this state: they must
+  /// survive a remount, or queued reports would lose their retries for the
+  /// rest of the process.
   void _startDelivery() {
-    if (SquawkController.instance.spool != null) return;
-
-    final spool = Spool(
+    final controller = SquawkController.instance;
+    final spool = controller.spool ??= Spool(
       storage: DiskSpoolStorage(),
       uploader: HttpReportUploader(
         apiKey: widget.apiKey,
         endpoint: widget.endpoint,
       ),
     );
-    SquawkController.instance.spool = spool;
-
-    final delivery = Delivery(spool: spool);
-    _delivery = delivery;
+    final delivery = controller.delivery ??= Delivery(spool: spool);
     unawaited(delivery.start());
   }
 
   @override
   void dispose() {
-    unawaited(_delivery?.stop());
-    _delivery = null;
+    unawaited(SquawkController.instance.delivery?.stop());
     SquawkController.instance.stopCapturingLogs();
     SquawkController.instance.unmount(context);
     super.dispose();

@@ -8,6 +8,7 @@ import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/device_context.dart';
 import 'package:squawk/src/reporter_email_store.dart';
+import 'package:squawk/src/upload/delivery.dart';
 import 'package:squawk/src/upload/report_uploader.dart';
 import 'package:squawk/src/upload/spool.dart';
 import 'package:squawk/src/upload/spool_storage.dart';
@@ -100,17 +101,22 @@ Future<void> waitReal(
 /// there is no channel implementation in a unit test, and the call neither
 /// answers nor throws.
 void resetSquawk({DeviceContextCollector? collector}) {
+  // A real spool would reach path_provider for a directory and a real
+  // delivery would reach connectivity_plus for a stream, and neither answers
+  // under test.
+  final spool = Spool(
+    storage: InMemorySpoolStorage(),
+    uploader: FakeUploader(),
+  );
   SquawkController.instance
     ..reset()
     // Without this every test that submits or calls clearUser reaches for
     // shared_preferences, where there is no platform channel to answer.
     ..emailStore = InMemoryEmailStore()
-    // Same reason: a real spool would reach path_provider for a directory
-    // and connectivity_plus for a stream, and neither answers under test.
-    ..spool = Spool(
-      storage: InMemorySpoolStorage(),
-      uploader: FakeUploader(),
-      delay: (_) async {},
+    ..spool = spool
+    ..delivery = Delivery(
+      spool: spool,
+      connectivityChanges: const Stream<Object?>.empty(),
     )
     ..collector = collector ??
         DeviceContextCollector(
@@ -162,21 +168,52 @@ class InMemorySpoolStorage implements SpoolStorage {
   /// Ids standing in for entries a crash left half-written.
   final Set<String> incomplete = {};
 
+  /// Ids whose [load] fails, standing in for files corrupted on disk.
+  final Set<String> unreadable = {};
+
+  /// How many times debris has been swept — one per delivery start.
+  int sweeps = 0;
+
   @override
-  Future<List<SpooledReport>> list() async {
+  Future<List<SpoolEntry>> list() async {
     final all = _entries.values.toList()
       ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
     return all;
   }
 
   @override
+  Future<SpooledReport?> load(String id) async =>
+      unreadable.contains(id) ? null : _entries[id];
+
+  @override
   Future<void> save(SpooledReport report) async => _entries[report.id] = report;
+
+  @override
+  Future<void> recordAttempt(
+    String id, {
+    required int attempts,
+    required DateTime at,
+  }) async {
+    final existing = _entries[id];
+    if (existing == null) return;
+    _entries[id] = SpooledReport(
+      id: existing.id,
+      capturedAt: existing.capturedAt,
+      metadata: existing.metadata,
+      screenshot: existing.screenshot,
+      attempts: attempts,
+      lastAttemptAt: at,
+    );
+  }
 
   @override
   Future<void> delete(String id) async => _entries.remove(id);
 
   @override
-  Future<void> sweepIncomplete() async => incomplete.clear();
+  Future<void> sweepIncomplete() async {
+    sweeps++;
+    incomplete.clear();
+  }
 }
 
 /// Uploader that records what it was asked to send.
@@ -189,8 +226,13 @@ class FakeUploader implements ReportUploader {
   /// Ids that should fail retryably regardless of [outcome].
   Set<String> failIds = {};
 
+  /// When set, every upload blocks on it — how a drain is held in flight so
+  /// a test can race something against it.
+  Completer<void>? gate;
+
   @override
   Future<UploadOutcome> upload(SpooledReport report) async {
+    await gate?.future;
     if (failIds.contains(report.id)) return UploadOutcome.retryable;
     if (outcome == UploadOutcome.sent) sent.add(report);
     return outcome;
