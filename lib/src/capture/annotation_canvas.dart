@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'annotations.dart';
@@ -73,6 +74,11 @@ class AnnotationCanvas extends StatelessWidget {
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          // Report the drag from the finger's first touch, not from where it
+          // crossed the platform's ~18px slop: a stroke must begin exactly
+          // where the finger landed, and grabbing a thin line to move it
+          // must not miss by the slop.
+          dragStartBehavior: DragStartBehavior.down,
           // Taps are dispatched by hand rather than left to the gesture
           // arena: with a tap recognizer registered, a plain tap would no
           // longer reach the pan callbacks that give the pen its dot.

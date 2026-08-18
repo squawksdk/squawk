@@ -15,6 +15,17 @@ sealed class Annotation {
   /// The on-screen preview and the final composite apply the same transform,
   /// so what the reporter sees is exactly what is uploaded.
   void draw(Canvas canvas);
+
+  /// Whether an image-space point lands on this annotation, padded enough
+  /// for a finger.
+  bool hitTest(Offset point);
+
+  /// Shifts the whole annotation. The controller clamps the delta so nothing
+  /// can be dragged off the picture and silently lost.
+  void moveBy(Offset delta);
+
+  /// The image-space box the annotation occupies.
+  Rect get bounds;
 }
 
 /// A freehand pen stroke.
@@ -36,7 +47,7 @@ final class StrokeAnnotation implements Annotation {
 
   /// Kept alongside [_points] so extending a stroke is O(1) per point rather
   /// than rebuilding the whole path every frame of the drag.
-  final Path _path;
+  Path _path;
 
   /// The points of the stroke, in image pixels.
   List<Offset> get points => List.unmodifiable(_points);
@@ -44,6 +55,42 @@ final class StrokeAnnotation implements Annotation {
   void extend(Offset point) {
     _points.add(point);
     _path.lineTo(point.dx, point.dy);
+  }
+
+  /// How far a touch may miss the line and still count. Generous on
+  /// purpose: the line is thin and the finger grabbing it is not.
+  double get _slop => strokeWidth * 4;
+
+  @override
+  bool hitTest(Offset point) {
+    if (_points.length == 1) {
+      return (point - _points.single).distance <= _slop;
+    }
+    for (var i = 0; i < _points.length - 1; i++) {
+      if (distanceToSegment(point, _points[i], _points[i + 1]) <= _slop) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @override
+  void moveBy(Offset delta) {
+    for (var i = 0; i < _points.length; i++) {
+      _points[i] += delta;
+    }
+    _path = _path.shift(delta);
+  }
+
+  @override
+  Rect get bounds {
+    var rect = Rect.fromCircle(center: _points.first, radius: strokeWidth);
+    for (final point in _points.skip(1)) {
+      rect = rect.expandToInclude(
+        Rect.fromCircle(center: point, radius: strokeWidth),
+      );
+    }
+    return rect;
   }
 
   @override
@@ -77,14 +124,17 @@ final class StrokeAnnotation implements Annotation {
 /// but reads as scribble in a client-facing report.
 final class ArrowAnnotation implements Annotation {
   ArrowAnnotation({
-    required this.start,
+    required Offset start,
     required Offset end,
     required this.color,
     required this.strokeWidth,
-  }) : _end = end;
+  })  : _start = start,
+        _end = end;
+
+  Offset _start;
 
   /// The tail — where the drag began.
-  final Offset start;
+  Offset get start => _start;
 
   final Color color;
 
@@ -97,6 +147,19 @@ final class ArrowAnnotation implements Annotation {
   Offset get end => _end;
 
   void moveHead(Offset point) => _end = point;
+
+  @override
+  bool hitTest(Offset point) =>
+      distanceToSegment(point, _start, _end) <= strokeWidth * 4;
+
+  @override
+  void moveBy(Offset delta) {
+    _start += delta;
+    _end += delta;
+  }
+
+  @override
+  Rect get bounds => Rect.fromPoints(_start, _end).inflate(strokeWidth * 2);
 
   double get length => (end - start).distance;
 
@@ -140,14 +203,17 @@ final class ArrowAnnotation implements Annotation {
 /// Words placed on the screenshot, naming the problem where it happens.
 final class TextAnnotation implements Annotation {
   TextAnnotation({
-    required this.position,
+    required Offset position,
     required String text,
     required this.color,
     required this.fontSize,
-  }) : _text = text;
+  })  : _position = position,
+        _text = text;
+
+  Offset _position;
 
   /// Top-left corner of the words, in image pixels.
-  final Offset position;
+  Offset get position => _position;
 
   final Color color;
 
@@ -172,13 +238,13 @@ final class TextAnnotation implements Annotation {
             color: color,
             fontSize: fontSize,
             fontWeight: FontWeight.w700,
-            // A screenshot can be any color; the shadow keeps the words
-            // legible on all of them without a background plate.
+            // A screenshot can be any color; a subtle shadow keeps the
+            // words legible on all of them without shouting.
             shadows: [
               Shadow(
-                color: const Color(0xB3000000),
-                blurRadius: fontSize * 0.25,
-                offset: Offset(0, fontSize * 0.06),
+                color: const Color(0x59000000),
+                blurRadius: fontSize * 0.1,
+                offset: Offset(0, fontSize * 0.04),
               ),
             ],
           ),
@@ -188,17 +254,34 @@ final class TextAnnotation implements Annotation {
 
   /// Whether an image-space point lands on these words. Padded by half the
   /// font size: fingers are fat and labels are small.
-  bool hitTest(Offset point) {
-    final slop = fontSize / 2;
-    return (position & _laidOut.size).inflate(slop).contains(point);
-  }
+  @override
+  bool hitTest(Offset point) =>
+      (position & _laidOut.size).inflate(fontSize / 2).contains(point);
+
+  @override
+  void moveBy(Offset delta) => _position += delta;
+
+  @override
+  Rect get bounds => position & _laidOut.size;
 
   @override
   void draw(Canvas canvas) => _laidOut.paint(canvas, position);
 }
 
+/// Distance from [p] to the segment [a]–[b], in image pixels.
+@visibleForTesting
+double distanceToSegment(Offset p, Offset a, Offset b) {
+  final ab = b - a;
+  final lengthSquared = ab.dx * ab.dx + ab.dy * ab.dy;
+  if (lengthSquared == 0) return (p - a).distance;
+
+  final t = (((p - a).dx * ab.dx + (p - a).dy * ab.dy) / lengthSquared)
+      .clamp(0.0, 1.0);
+  return (p - (a + ab * t)).distance;
+}
+
 /// What a tap or drag on the canvas produces.
-enum AnnotationTool { pen, arrow, text }
+enum AnnotationTool { pen, arrow, text, move }
 
 /// The marker colors offered to the reporter. Red first: it is what people
 /// reach for to point at a problem.
@@ -220,13 +303,23 @@ String colorNameOf(Color color) => switch (color) {
 
 /// Holds what has been drawn during one capture session.
 class AnnotationController extends ChangeNotifier {
-  AnnotationController({required this.strokeWidth});
+  AnnotationController({required this.strokeWidth, required this.imageSize});
 
   /// In image pixels — chosen by the session from the capture's pixel ratio.
   final double strokeWidth;
 
+  /// The screenshot's dimensions, so a move can be stopped at the edge
+  /// instead of letting a drawing be dragged off the picture and lost.
+  final Size imageSize;
+
   final List<Annotation> _annotations = [];
   Annotation? _active;
+
+  /// The annotation being dragged in move mode, and where the finger last
+  /// was — deltas are applied incrementally so the drag can be stopped at
+  /// the image edge mid-gesture.
+  Annotation? _moving;
+  Offset _movePoint = Offset.zero;
   Color _color = annotationColors.first;
   AnnotationTool _tool = AnnotationTool.pen;
 
@@ -234,7 +327,8 @@ class AnnotationController extends ChangeNotifier {
 
   bool get hasAnnotations => _annotations.isNotEmpty;
 
-  bool get canUndo => _annotations.isNotEmpty && _active == null;
+  bool get canUndo =>
+      _annotations.isNotEmpty && _active == null && _moving == null;
 
   Color get color => _color;
   set color(Color value) {
@@ -253,7 +347,13 @@ class AnnotationController extends ChangeNotifier {
   void startStroke(Offset imagePoint) {
     // A second start before the first ended: a stray extra pointer. The
     // drawing in progress wins; starting another would corrupt it.
-    if (_active != null) return;
+    if (_active != null || _moving != null) return;
+
+    if (_tool == AnnotationTool.move) {
+      _moving = annotationAt(imagePoint);
+      _movePoint = imagePoint;
+      return;
+    }
 
     final Annotation? annotation = switch (_tool) {
       AnnotationTool.pen => StrokeAnnotation(
@@ -267,8 +367,9 @@ class AnnotationController extends ChangeNotifier {
           color: _color,
           strokeWidth: strokeWidth,
         ),
-      // Labels are placed by tap, not drawn by drag.
-      AnnotationTool.text => null,
+      // Labels are placed by tap, not drawn by drag; moving is handled
+      // above before anything is created.
+      AnnotationTool.text || AnnotationTool.move => null,
     };
     if (annotation == null) return;
     _active = annotation;
@@ -277,6 +378,19 @@ class AnnotationController extends ChangeNotifier {
   }
 
   void extendStroke(Offset imagePoint) {
+    if (_moving case final moving?) {
+      final delta = imagePoint - _movePoint;
+      _movePoint = imagePoint;
+      moving.moveBy(delta);
+      // Undone rather than clamped: reverting the step the moment the
+      // drawing would leave the picture stops it exactly at the edge.
+      if (!moving.bounds.overlaps(Offset.zero & imageSize)) {
+        moving.moveBy(-delta);
+      }
+      notifyListeners();
+      return;
+    }
+
     switch (_active) {
       case StrokeAnnotation stroke:
         stroke.extend(imagePoint);
@@ -296,7 +410,16 @@ class AnnotationController extends ChangeNotifier {
       _annotations.remove(arrow);
     }
     _active = null;
+    _moving = null;
     notifyListeners();
+  }
+
+  /// The topmost annotation of any kind under an image-space point.
+  Annotation? annotationAt(Offset imagePoint) {
+    for (final annotation in _annotations.reversed) {
+      if (annotation.hitTest(imagePoint)) return annotation;
+    }
+    return null;
   }
 
   /// Words the label tool renders, sized to read like body text whatever

@@ -274,6 +274,40 @@ void main() {
       expect(canvasOf(tester).controller.hasAnnotations, isFalse);
     });
 
+    testWidgets('the move tool drags a drawing somewhere else',
+        (tester) async {
+      await openCapture(tester);
+      final controller = canvasOf(tester).controller;
+
+      // An arrow to move, drawn through the real gesture path.
+      await tester.tap(find.byKey(CaptureOverlay.arrowToolKey));
+      await tester.pumpAndSettle();
+      final canvasCenter = tester.getCenter(find.byType(AnnotationCanvas));
+      await tester.timedDragFrom(
+        canvasCenter - const Offset(60, 0),
+        const Offset(120, 0),
+        const Duration(milliseconds: 200),
+      );
+      await tester.pumpAndSettle();
+      final arrow = controller.annotations.single as ArrowAnnotation;
+      final startBefore = arrow.start;
+
+      await tester.tap(find.byKey(CaptureOverlay.moveToolKey));
+      await tester.pumpAndSettle();
+      await tester.timedDragFrom(
+        canvasCenter,
+        const Offset(0, 80),
+        const Duration(milliseconds: 200),
+      );
+      await tester.pumpAndSettle();
+
+      expect(arrow.start.dx, startBefore.dx);
+      expect(arrow.start.dy, greaterThan(startBefore.dy),
+          reason: 'the drag must have carried the arrow downward');
+      expect(controller.annotations, hasLength(1),
+          reason: 'moving must not draw anything new');
+    });
+
     testWidgets('tapping a color dot changes the marker', (tester) async {
       await openCapture(tester);
       final controller = canvasOf(tester).controller;

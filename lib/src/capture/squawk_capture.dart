@@ -135,7 +135,10 @@ class CaptureHostState extends State<CaptureHost> {
         image: image,
         // Stroke weight in image pixels, so it looks the same on screen and
         // in the uploaded PNG.
-        annotations: AnnotationController(strokeWidth: 4 * pixelRatio),
+        annotations: AnnotationController(
+          strokeWidth: 4 * pixelRatio,
+          imageSize: Size(image.width.toDouble(), image.height.toDouble()),
+        ),
       );
       setState(() => _session = session);
 

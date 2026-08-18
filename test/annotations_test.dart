@@ -1,9 +1,12 @@
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/src/capture/annotations.dart';
 
 void main() {
-  AnnotationController controllerWith() =>
-      AnnotationController(strokeWidth: 8);
+  AnnotationController controllerWith() => AnnotationController(
+        strokeWidth: 8,
+        imageSize: const Size(1000, 1000),
+      );
 
   group('drawing strokes', () {
     test('a drag becomes one stroke carrying its points', () {
@@ -275,6 +278,121 @@ void main() {
 
       expect(controller.hasAnnotations, isFalse);
     });
+  });
+
+  group('the move tool', () {
+    test('drags a stroke by any point along it', () {
+      final controller = controllerWith();
+      controller.startStroke(const Offset(100, 100));
+      controller.extendStroke(const Offset(200, 100));
+      controller.endStroke();
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(150, 100));
+      controller.extendStroke(const Offset(150, 160));
+      controller.endStroke();
+
+      final stroke = controller.annotations.single as StrokeAnnotation;
+      expect(stroke.points, const [Offset(100, 160), Offset(200, 160)]);
+    });
+
+    test('drags an arrow by its shaft, tail and head together', () {
+      final controller = controllerWith()..tool = AnnotationTool.arrow;
+      controller.startStroke(const Offset(100, 100));
+      controller.extendStroke(const Offset(300, 100));
+      controller.endStroke();
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(200, 100));
+      controller.extendStroke(const Offset(250, 150));
+      controller.endStroke();
+
+      final arrow = controller.annotations.single as ArrowAnnotation;
+      expect(arrow.start, const Offset(150, 150));
+      expect(arrow.end, const Offset(350, 150));
+    });
+
+    test('drags a label wherever the finger goes', () {
+      final controller = controllerWith()..tool = AnnotationTool.text;
+      final label = controller.addLabel(const Offset(100, 100), 'here');
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(110, 110));
+      controller.extendStroke(const Offset(400, 300));
+      controller.endStroke();
+
+      expect(label!.position, const Offset(390, 290));
+    });
+
+    test('a drag on empty canvas moves nothing and draws nothing', () {
+      final controller = controllerWith();
+      controller.startStroke(const Offset(100, 100));
+      controller.endStroke();
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(600, 600));
+      controller.extendStroke(const Offset(700, 700));
+      controller.endStroke();
+
+      final dot = controller.annotations.single as StrokeAnnotation;
+      expect(dot.points.single, const Offset(100, 100));
+      expect(controller.annotations, hasLength(1));
+    });
+
+    // Dragging a drawing off the picture would lose it invisibly: it stays
+    // in the report's annotation list but marks nothing.
+    test('a drawing stops at the image edge instead of leaving', () {
+      final controller = controllerWith()..tool = AnnotationTool.text;
+      final label = controller.addLabel(const Offset(900, 900), 'stay');
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(910, 910));
+      controller.extendStroke(const Offset(999, 999));
+      controller.extendStroke(const Offset(999, 999));
+      controller.endStroke();
+
+      expect(
+        label!.bounds.overlaps(const Rect.fromLTWH(0, 0, 1000, 1000)),
+        isTrue,
+        reason: 'some part of the label must still be on the picture',
+      );
+    });
+
+    test('overlapping drawings move the one on top', () {
+      final controller = controllerWith()..tool = AnnotationTool.text;
+      final under = controller.addLabel(const Offset(100, 100), 'under');
+      final over = controller.addLabel(const Offset(105, 105), 'over');
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(110, 110));
+      controller.extendStroke(const Offset(310, 110));
+      controller.endStroke();
+
+      expect(over!.position.dx, 305);
+      expect(under!.position, const Offset(100, 100));
+    });
+
+    test('undo is refused while a drawing is mid-move', () {
+      final controller = controllerWith();
+      controller.startStroke(const Offset(100, 100));
+      controller.endStroke();
+
+      controller.tool = AnnotationTool.move;
+      controller.startStroke(const Offset(100, 100));
+
+      expect(controller.canUndo, isFalse);
+      controller.endStroke();
+      expect(controller.canUndo, isTrue);
+    });
+  });
+
+  test('distance to a segment measures perpendicular or to the ends', () {
+    const a = Offset(0, 0);
+    const b = Offset(100, 0);
+
+    expect(distanceToSegment(const Offset(50, 30), a, b), 30);
+    expect(distanceToSegment(const Offset(-40, 0), a, b), 40);
+    expect(distanceToSegment(const Offset(130, 40), a, b), 50);
   });
 
   test('the annotation list cannot be mutated from outside', () {

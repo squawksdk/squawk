@@ -46,6 +46,7 @@ class CaptureOverlay extends StatefulWidget {
   static const Key penToolKey = Key('squawk_pen_tool');
   static const Key arrowToolKey = Key('squawk_arrow_tool');
   static const Key textToolKey = Key('squawk_text_tool');
+  static const Key moveToolKey = Key('squawk_move_tool');
   static const Key labelInputKey = Key('squawk_label_input');
   static const Key labelSaveKey = Key('squawk_label_save');
   static const Key labelCancelKey = Key('squawk_label_cancel');
@@ -221,7 +222,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                 bottom: false,
                 child: Column(
                   children: [
-                    _slideIn(from: const Offset(0, -0.6), _toolbar(theme)),
+                    _slideIn(from: const Offset(0, -0.6), _topBar(theme)),
                     Expanded(
                       // The screenshot settles from slightly over-scale into
                       // its frame — the screen becoming a photo.
@@ -233,7 +234,10 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                         child: _canvasWithHint(theme),
                       ),
                     ),
-                    _slideIn(from: const Offset(0, 0.4), _formPanel(theme)),
+                    _slideIn(
+                      from: const Offset(0, 0.4),
+                      Column(children: [_toolStrip(theme), _formPanel(theme)]),
+                    ),
                   ],
                 ),
               ),
@@ -251,7 +255,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     child: child,
   );
 
-  Widget _toolbar(ThemeData theme) {
+  Widget _topBar(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
@@ -263,71 +267,72 @@ class _CaptureOverlayState extends State<CaptureOverlay>
             tooltip: 'Close',
           ),
           const Spacer(),
-          // scaleDown, so a narrow phone shrinks the controls a little
-          // instead of clipping the undo button off the edge.
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: ListenableBuilder(
-                listenable: widget.annotations,
-                builder:
-                    (context, _) => Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ToolButton(
-                          key: CaptureOverlay.penToolKey,
-                          icon: Icons.gesture,
-                          label: 'Pen tool',
-                          selected:
-                              widget.annotations.tool == AnnotationTool.pen,
-                          onTap:
-                              () =>
-                                  widget.annotations.tool = AnnotationTool.pen,
-                        ),
-                        _ToolButton(
-                          key: CaptureOverlay.arrowToolKey,
-                          icon: Icons.north_east,
-                          label: 'Arrow tool',
-                          selected:
-                              widget.annotations.tool == AnnotationTool.arrow,
-                          onTap:
-                              () =>
-                                  widget.annotations.tool =
-                                      AnnotationTool.arrow,
-                        ),
-                        _ToolButton(
-                          key: CaptureOverlay.textToolKey,
-                          icon: Icons.text_fields,
-                          label: 'Text tool',
-                          selected:
-                              widget.annotations.tool == AnnotationTool.text,
-                          onTap:
-                              () =>
-                                  widget.annotations.tool = AnnotationTool.text,
-                        ),
-                        const SizedBox(width: 8),
-                        for (final color in annotationColors)
-                          _ColorDot(
-                            color: color,
-                            selected: widget.annotations.color == color,
-                            onTap: () => widget.annotations.color = color,
-                          ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          key: CaptureOverlay.undoButtonKey,
-                          onPressed:
-                              widget.annotations.canUndo
-                                  ? widget.annotations.undo
-                                  : null,
-                          icon: const Icon(Icons.undo),
-                          tooltip: 'Undo drawing',
-                        ),
-                      ],
-                    ),
-              ),
-            ),
+          ListenableBuilder(
+            listenable: widget.annotations,
+            builder:
+                (context, _) => IconButton(
+                  key: CaptureOverlay.undoButtonKey,
+                  onPressed:
+                      widget.annotations.canUndo
+                          ? widget.annotations.undo
+                          : null,
+                  icon: const Icon(Icons.undo),
+                  tooltip: 'Undo drawing',
+                ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Tools and colors in their own strip above the form — near the thumb,
+  /// and never shrunk to fit the way a single crowded row would be.
+  Widget _toolStrip(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
+      child: ListenableBuilder(
+        listenable: widget.annotations,
+        builder:
+            (context, _) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _ToolButton(
+                  key: CaptureOverlay.penToolKey,
+                  icon: Icons.gesture,
+                  label: 'Pen tool',
+                  selected: widget.annotations.tool == AnnotationTool.pen,
+                  onTap: () => widget.annotations.tool = AnnotationTool.pen,
+                ),
+                _ToolButton(
+                  key: CaptureOverlay.arrowToolKey,
+                  icon: Icons.north_east,
+                  label: 'Arrow tool',
+                  selected: widget.annotations.tool == AnnotationTool.arrow,
+                  onTap: () => widget.annotations.tool = AnnotationTool.arrow,
+                ),
+                _ToolButton(
+                  key: CaptureOverlay.textToolKey,
+                  icon: Icons.text_fields,
+                  label: 'Text tool',
+                  selected: widget.annotations.tool == AnnotationTool.text,
+                  onTap: () => widget.annotations.tool = AnnotationTool.text,
+                ),
+                _ToolButton(
+                  key: CaptureOverlay.moveToolKey,
+                  icon: Icons.open_with,
+                  label: 'Move tool',
+                  selected: widget.annotations.tool == AnnotationTool.move,
+                  onTap: () => widget.annotations.tool = AnnotationTool.move,
+                ),
+                const SizedBox(width: 10),
+                for (final color in annotationColors)
+                  _ColorDot(
+                    color: color,
+                    selected: widget.annotations.color == color,
+                    onTap: () => widget.annotations.color = color,
+                  ),
+              ],
+            ),
       ),
     );
   }
@@ -375,10 +380,14 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            widget.annotations.tool == AnnotationTool.text
-                                ? 'Tap the screenshot to add a note'
-                                : 'Draw on the screenshot to point at the '
-                                    'problem',
+                            switch (widget.annotations.tool) {
+                              AnnotationTool.text =>
+                                'Tap the screenshot to add a note',
+                              AnnotationTool.move =>
+                                'Drag a drawing to move it',
+                              _ =>
+                                'Draw on the screenshot to point at the problem',
+                            },
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onInverseSurface,
                             ),
@@ -579,7 +588,7 @@ class _ToolButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
             decoration: BoxDecoration(
               color:
                   selected
@@ -628,8 +637,8 @@ class _ColorDot extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: selected ? 28 : 22,
-            height: selected ? 28 : 22,
+            width: selected ? 30 : 24,
+            height: selected ? 30 : 24,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
