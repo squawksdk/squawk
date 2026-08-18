@@ -71,6 +71,26 @@ void main() {
     expect(await pixelAt(png!, 30, 30), red);
   });
 
+  test('an arrow lands shaft, head and all where it was drawn', () async {
+    final screenshot = await solidImage(100, 100, white);
+    final arrow = ArrowAnnotation(
+      start: const Offset(10, 50),
+      end: const Offset(90, 50),
+      color: red,
+      strokeWidth: 4,
+    );
+
+    final png = await annotatedPng(
+      screenshot: screenshot,
+      annotations: [arrow],
+    );
+
+    expect(await pixelAt(png!, 40, 50), red, reason: 'the shaft runs here');
+    expect(await pixelAt(png, 85, 50), red, reason: 'inside the head');
+    expect(await pixelAt(png, 40, 20), white,
+        reason: 'away from the arrow the screenshot is untouched');
+  });
+
   test('no annotations means the screenshot goes out untouched', () async {
     final screenshot = await solidImage(60, 40, red);
 

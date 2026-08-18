@@ -43,6 +43,8 @@ class CaptureOverlay extends StatefulWidget {
 
   static const Key closeButtonKey = Key('squawk_close_button');
   static const Key undoButtonKey = Key('squawk_undo_button');
+  static const Key penToolKey = Key('squawk_pen_tool');
+  static const Key arrowToolKey = Key('squawk_arrow_tool');
   static const Key discardButtonKey = Key('squawk_discard_button');
   static const Key keepEditingButtonKey = Key('squawk_keep_editing_button');
 
@@ -223,6 +225,23 @@ class _CaptureOverlayState extends State<CaptureOverlay>
             builder: (context, _) => Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _ToolButton(
+                  key: CaptureOverlay.penToolKey,
+                  icon: Icons.gesture,
+                  label: 'Pen tool',
+                  selected: widget.annotations.tool == AnnotationTool.pen,
+                  onTap: () =>
+                      widget.annotations.tool = AnnotationTool.pen,
+                ),
+                _ToolButton(
+                  key: CaptureOverlay.arrowToolKey,
+                  icon: Icons.north_east,
+                  label: 'Arrow tool',
+                  selected: widget.annotations.tool == AnnotationTool.arrow,
+                  onTap: () =>
+                      widget.annotations.tool = AnnotationTool.arrow,
+                ),
+                const SizedBox(width: 8),
                 for (final color in annotationColors)
                   _ColorDot(
                     color: color,
@@ -371,6 +390,58 @@ class _CaptureOverlayState extends State<CaptureOverlay>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// One drawing tool in the toolbar. A filled pill when active, so which
+/// tool the next drag uses is never a guess.
+class _ToolButton extends StatelessWidget {
+  const _ToolButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: selected
+                  ? theme.colorScheme.primaryContainer
+                  : const Color(0x00000000),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color: selected
+                  ? theme.colorScheme.onPrimaryContainer
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
