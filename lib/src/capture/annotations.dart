@@ -72,6 +72,75 @@ final class StrokeAnnotation implements Annotation {
   }
 }
 
+/// A straight arrow from where the drag started to where it ended.
+///
+/// The tool for pointing at one specific element — freehand circling works,
+/// but reads as scribble in a client-facing report.
+final class ArrowAnnotation implements Annotation {
+  ArrowAnnotation({
+    required this.start,
+    required Offset end,
+    required this.color,
+    required this.strokeWidth,
+  }) : _end = end;
+
+  /// The tail — where the drag began.
+  final Offset start;
+
+  final Color color;
+
+  /// In image pixels, like every annotation measurement.
+  final double strokeWidth;
+
+  Offset _end;
+
+  /// The head — follows the finger while the drag is live.
+  Offset get end => _end;
+
+  void moveHead(Offset point) => _end = point;
+
+  double get length => (end - start).distance;
+
+  /// Shorter than this and the arrow marks nothing; the controller discards
+  /// it rather than leave a speck the reporter has to undo.
+  double get minLength => strokeWidth * 3;
+
+  @override
+  void draw(Canvas canvas) {
+    if (length < minLength) return;
+
+    final direction = (end - start) / length;
+    final headLength = strokeWidth * 3.5;
+    final headBase = end - direction * headLength;
+    final across =
+        Offset(-direction.dy, direction.dx) * (headLength * 0.55);
+
+    // The shaft stops at the head's base so the line never pokes through
+    // the tip.
+    canvas.drawLine(
+      start,
+      headBase,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round,
+    );
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(end.dx, end.dy)
+        ..lineTo(headBase.dx + across.dx, headBase.dy + across.dy)
+        ..lineTo(headBase.dx - across.dx, headBase.dy - across.dy)
+        ..close(),
+      Paint()..color = color,
+    );
+  }
+}
+
+/// What a drag on the canvas produces.
+enum AnnotationTool { pen, arrow }
+
 /// The marker colors offered to the reporter. Red first: it is what people
 /// reach for to point at a problem.
 const List<Color> annotationColors = [
@@ -98,8 +167,9 @@ class AnnotationController extends ChangeNotifier {
   final double strokeWidth;
 
   final List<Annotation> _annotations = [];
-  StrokeAnnotation? _active;
+  Annotation? _active;
   Color _color = annotationColors.first;
+  AnnotationTool _tool = AnnotationTool.pen;
 
   List<Annotation> get annotations => List.unmodifiable(_annotations);
 
@@ -114,27 +184,55 @@ class AnnotationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  AnnotationTool get tool => _tool;
+  set tool(AnnotationTool value) {
+    if (_tool == value) return;
+    _tool = value;
+    notifyListeners();
+  }
+
   void startStroke(Offset imagePoint) {
     // A second start before the first ended: a stray extra pointer. The
-    // stroke in progress wins; starting another would corrupt it.
+    // drawing in progress wins; starting another would corrupt it.
     if (_active != null) return;
 
-    final stroke = StrokeAnnotation(
-      start: imagePoint,
-      color: _color,
-      strokeWidth: strokeWidth,
-    );
-    _active = stroke;
-    _annotations.add(stroke);
+    final annotation = switch (_tool) {
+      AnnotationTool.pen => StrokeAnnotation(
+          start: imagePoint,
+          color: _color,
+          strokeWidth: strokeWidth,
+        ),
+      AnnotationTool.arrow => ArrowAnnotation(
+          start: imagePoint,
+          end: imagePoint,
+          color: _color,
+          strokeWidth: strokeWidth,
+        ),
+    };
+    _active = annotation;
+    _annotations.add(annotation);
     notifyListeners();
   }
 
   void extendStroke(Offset imagePoint) {
-    _active?.extend(imagePoint);
-    if (_active != null) notifyListeners();
+    switch (_active) {
+      case StrokeAnnotation stroke:
+        stroke.extend(imagePoint);
+      case ArrowAnnotation arrow:
+        arrow.moveHead(imagePoint);
+      case _:
+        return;
+    }
+    notifyListeners();
   }
 
   void endStroke() {
+    // An arrow too short to have a direction marks nothing — dropping it
+    // beats leaving a speck the reporter has to undo.
+    if (_active case final ArrowAnnotation arrow
+        when arrow.length < arrow.minLength) {
+      _annotations.remove(arrow);
+    }
     _active = null;
     notifyListeners();
   }

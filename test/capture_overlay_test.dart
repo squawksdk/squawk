@@ -144,6 +144,26 @@ void main() {
       expect(tester.widget<IconButton>(undo).onPressed, isNull);
     });
 
+    testWidgets('the pen is the tool in hand until the arrow is chosen',
+        (tester) async {
+      await openCapture(tester);
+      final controller = canvasOf(tester).controller;
+      expect(controller.tool, AnnotationTool.pen);
+
+      await tester.tap(find.byKey(CaptureOverlay.arrowToolKey));
+      await tester.pumpAndSettle();
+      expect(controller.tool, AnnotationTool.arrow);
+
+      await draw(tester);
+      expect(controller.annotations.single, isA<ArrowAnnotation>(),
+          reason: 'a drag in arrow mode must produce an arrow');
+
+      await tester.tap(find.byKey(CaptureOverlay.penToolKey));
+      await tester.pumpAndSettle();
+      await draw(tester);
+      expect(controller.annotations.last, isA<StrokeAnnotation>());
+    });
+
     testWidgets('tapping a color dot changes the marker', (tester) async {
       await openCapture(tester);
       final controller = canvasOf(tester).controller;
