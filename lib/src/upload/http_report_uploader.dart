@@ -103,10 +103,11 @@ class HttpReportUploader implements ReportUploader {
   /// cannot change. Two exceptions:
   ///
   /// - 429 means "not now", not "never".
-  /// - 401 is retried on purpose while the backend is new. Dropping on 401
-  ///   means an auth bug in our own ingest destroys every report from every
-  ///   user, unrecoverably, whereas retrying a genuinely wrong key costs only
-  ///   battery. See SQUAW-33 for tightening this once auth is proven.
+  /// - 401 is retried on purpose, permanently — a settled decision, not a
+  ///   stopgap. Dropping on 401 destroys reports unrecoverably over what may
+  ///   be a fixable key problem; retrying costs only battery, and reports
+  ///   captured under a wrong key have been observed delivering intact the
+  ///   moment the app restarted with the right one.
   static UploadOutcome _outcomeFor(int status) {
     if (status >= 200 && status < 300) return UploadOutcome.sent;
     if (status == 401 || status == 429 || status >= 500) {

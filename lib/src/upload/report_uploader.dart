@@ -5,9 +5,8 @@ enum UploadOutcome {
   /// Accepted. Delete it.
   sent,
 
-  /// The server answered "not now" — a 5xx, a 429, or (while the backend is
-  /// new) a 401. Worth another attempt later, and counted against the
-  /// entry's attempt limit.
+  /// The server answered "not now" — a 5xx, a 429, or a 401. Worth another
+  /// attempt later, and counted against the entry's attempt limit.
   retryable,
 
   /// The server was never reached — no route, DNS failure, TLS error,
