@@ -91,6 +91,46 @@ void main() {
         reason: 'away from the arrow the screenshot is untouched');
   });
 
+  test('a label paints its words at the placed position', () async {
+    final screenshot = await solidImage(300, 200, white);
+    final label = TextAnnotation(
+      position: const Offset(50, 80),
+      text: 'XXXX',
+      color: red,
+      fontSize: 40,
+    );
+
+    final png = await annotatedPng(
+      screenshot: screenshot,
+      annotations: [label],
+    );
+
+    // Glyph shapes vary by platform font, so scan the region the text was
+    // laid out into rather than asserting exact pixels — and decode the PNG
+    // once, not per probe.
+    final codec = await ui.instantiateImageCodec(png!);
+    final image = (await codec.getNextFrame()).image;
+    final data =
+        (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+    final bytes = data.buffer.asUint8List();
+    Color colorAt(int x, int y) {
+      final offset = (y * image.width + x) * 4;
+      return Color.fromARGB(bytes[offset + 3], bytes[offset],
+          bytes[offset + 1], bytes[offset + 2]);
+    }
+
+    final region = [
+      for (var x = 50; x < 170; x++)
+        for (var y = 80; y < 130; y++) colorAt(x, y),
+    ];
+    image.dispose();
+
+    expect(region, contains(red),
+        reason: 'the words must appear where they were placed');
+    expect(colorAt(280, 20), white,
+        reason: 'far from the label the screenshot is untouched');
+  });
+
   test('no annotations means the screenshot goes out untouched', () async {
     final screenshot = await solidImage(60, 40, red);
 

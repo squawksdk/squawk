@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'annotations.dart';
@@ -48,10 +49,15 @@ class AnnotationCanvas extends StatelessWidget {
     super.key,
     required this.image,
     required this.controller,
+    this.onLabelRequested,
   });
 
   final ui.Image image;
   final AnnotationController controller;
+
+  /// A tap while the text tool is in hand, in image pixels. The owner shows
+  /// the editor; the canvas only knows where.
+  final ValueChanged<Offset>? onLabelRequested;
 
   Size get _imageSize =>
       Size(image.width.toDouble(), image.height.toDouble());
@@ -68,6 +74,27 @@ class AnnotationCanvas extends StatelessWidget {
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          // Report the drag from the finger's first touch, not from where it
+          // crossed the platform's ~18px slop: a stroke must begin exactly
+          // where the finger landed, and grabbing a thin line to move it
+          // must not miss by the slop.
+          dragStartBehavior: DragStartBehavior.down,
+          // Taps are dispatched by hand rather than left to the gesture
+          // arena: with a tap recognizer registered, a plain tap would no
+          // longer reach the pan callbacks that give the pen its dot.
+          onTapUp: (d) {
+            final point = toImage(d.localPosition);
+            switch (controller.tool) {
+              case AnnotationTool.text:
+                onLabelRequested?.call(point);
+              case AnnotationTool.move:
+                controller.select(controller.annotationAt(point));
+              case AnnotationTool.pen || AnnotationTool.arrow:
+                controller
+                  ..startStroke(point)
+                  ..endStroke();
+            }
+          },
           onPanStart: (d) => controller.startStroke(toImage(d.localPosition)),
           onPanUpdate: (d) => controller.extendStroke(toImage(d.localPosition)),
           onPanEnd: (_) => controller.endStroke(),
@@ -104,7 +131,12 @@ class _AnnotatedImagePainter extends CustomPainter {
     canvas
       ..save()
       ..translate(displayRect.left, displayRect.top)
-      ..scale(scale);
+      ..scale(scale)
+      // The composite is cropped to the image, so the preview must be too —
+      // a label running past the edge has to look cut off before it is sent.
+      ..clipRect(
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      );
 
     // Drawn through the same transform as the annotations so the two can
     // never disagree about where a pixel is.
@@ -116,8 +148,44 @@ class _AnnotatedImagePainter extends CustomPainter {
     for (final annotation in controller.annotations) {
       annotation.draw(canvas);
     }
+    _drawSelection(canvas);
 
     canvas.restore();
+  }
+
+  /// The selection box and its resize handle. Preview chrome only — the
+  /// composite draws annotations and nothing else, so none of this can ever
+  /// reach the uploaded PNG.
+  void _drawSelection(Canvas canvas) {
+    final selected = controller.selected;
+    if (selected == null) return;
+
+    final rect = controller.selectionRectOf(selected);
+    final line = controller.strokeWidth * 0.45;
+    const blue = Color(0xFF448AFF);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(line * 3)),
+      Paint()
+        ..color = blue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = line,
+    );
+
+    final handle = rect.bottomRight;
+    canvas.drawCircle(
+      handle,
+      controller.strokeWidth * 1.6,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      handle,
+      controller.strokeWidth * 1.6,
+      Paint()
+        ..color = blue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = line,
+    );
   }
 
   @override
