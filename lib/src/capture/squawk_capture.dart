@@ -11,6 +11,7 @@ import 'capture_shell.dart';
 import 'composite.dart';
 import 'report_capture.dart';
 import 'screenshot_boundary.dart';
+import 'sent_confirmation.dart';
 
 /// [ReportCapture] owned entirely by Squawk.
 ///
@@ -58,6 +59,25 @@ class _CaptureSession {
   final ui.Image image;
   final AnnotationController annotations;
   final Completer<SquawkReport?> completer = Completer();
+
+  bool _disposed = false;
+
+  /// Called by an overlay leaving the tree. Disposes only when the session
+  /// is actually over: a tree restructure can retire one overlay while a
+  /// replacement for the same live session is already painting the image,
+  /// and disposing under it would break every later frame.
+  void retire() {
+    if (completer.isCompleted) dispose();
+  }
+
+  /// Idempotent: reachable from a retiring overlay and from the host's own
+  /// teardown — whichever comes second is a no-op.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    image.dispose();
+    annotations.dispose();
+  }
 }
 
 /// Hosts the screenshot boundary and, while a session runs, the overlay.
@@ -81,6 +101,9 @@ class CaptureHost extends StatefulWidget {
 class CaptureHostState extends State<CaptureHost> {
   final _screenshot = ScreenshotController();
   _CaptureSession? _session;
+
+  /// Non-null while the "report sent" note is on screen.
+  Timer? _sentNote;
 
   /// Covers the window between a session being requested and its screenshot
   /// arriving — [_session] is not set yet, but a second capture must not
@@ -149,33 +172,43 @@ class CaptureHostState extends State<CaptureHost> {
         reporterEmail: email,
       ),
     );
+    _showSentNote();
+  }
+
+  /// The reporter just handed their work over; without an answer they will
+  /// wonder whether it worked — and file it twice, or never again.
+  void _showSentNote() {
+    if (!mounted) return;
+    _sentNote?.cancel();
+    setState(() {
+      _sentNote = Timer(SentConfirmation.visibleFor, () {
+        if (mounted) setState(() => _sentNote = null);
+      });
+    });
   }
 
   void _endSession(SquawkReport? result) {
     final session = _session;
     if (session == null) return;
 
+    // Not disposed here: the overlay is still fading out and its painter
+    // still holds the image. The overlay disposes the session when it
+    // finally leaves the tree.
     setState(() => _session = null);
-    // The overlay's painter may still hold the image for the frame that
-    // removes it; dispose once that frame is done.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      session.image.dispose();
-      session.annotations.dispose();
-    });
 
     if (!session.completer.isCompleted) session.completer.complete(result);
   }
 
   @override
   void dispose() {
+    _sentNote?.cancel();
     // The host can be unmounted mid-session; the caller must get its answer,
     // not hang forever.
     final session = _session;
     if (session != null) {
       _session = null;
       if (!session.completer.isCompleted) session.completer.complete(null);
-      session.image.dispose();
-      session.annotations.dispose();
+      session.dispose();
     }
     super.dispose();
   }
@@ -189,16 +222,35 @@ class CaptureHostState extends State<CaptureHost> {
       fit: StackFit.passthrough,
       children: [
         ScreenshotBoundary(controller: _screenshot, child: widget.child),
-        if (session != null)
-          CaptureShell(
-            child: CaptureOverlay(
-              image: session.image,
-              annotations: session.annotations,
-              askReporterEmail: widget.askReporterEmail,
-              onSubmit: _submit,
-              onDismiss: () => _endSession(null),
-            ),
-          ),
+        // Below the capture overlay: a new capture started while the note is
+        // up simply covers it.
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          child: _sentNote == null
+              ? const SizedBox.shrink()
+              : const SentConfirmation(),
+        ),
+        // The switcher fades the overlay out however the session ended —
+        // dismiss animates itself first, submit relies on this alone.
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: session == null
+              ? const SizedBox.shrink()
+              : CaptureShell(
+                  // Keyed by session so a capture started during the previous
+                  // one's exit fade cross-fades instead of being mistaken for
+                  // the same child.
+                  key: ValueKey(session),
+                  child: CaptureOverlay(
+                    image: session.image,
+                    annotations: session.annotations,
+                    askReporterEmail: widget.askReporterEmail,
+                    onSubmit: _submit,
+                    onDismiss: () => _endSession(null),
+                    onRetired: session.retire,
+                  ),
+                ),
+        ),
       ],
     );
   }

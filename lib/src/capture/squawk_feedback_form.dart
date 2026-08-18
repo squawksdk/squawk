@@ -129,6 +129,17 @@ class SquawkFeedbackForm extends StatelessWidget {
                   )
                 : const Text('Send report'),
           ),
+          const SizedBox(height: 8),
+          // The reporter deserves to know what travels with their words —
+          // and their QA lead needs them to know it.
+          Text(
+            'Sends your notes with the screenshot, device info and '
+            'recent app logs.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );

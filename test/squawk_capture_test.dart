@@ -8,6 +8,7 @@ import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/annotation_canvas.dart';
 import 'package:squawk/src/capture/annotations.dart';
 import 'package:squawk/src/capture/capture_overlay.dart';
+import 'package:squawk/src/capture/sent_confirmation.dart';
 import 'package:squawk/src/capture/squawk_feedback_form.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
@@ -132,6 +133,40 @@ void main() {
       isTrue,
       reason: 'the marker color must appear in the uploaded PNG',
     );
+  });
+
+  // The reporter just handed their work over. Without an answer they will
+  // wonder whether it worked — and file it twice, or never again.
+  testWidgets('sending is confirmed on screen, then gets out of the way',
+      (tester) async {
+    await tester.pumpWidget(hostApp());
+
+    SquawkReport? report;
+    unawaited(SquawkController.instance.show().then((r) => report = r));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));
+    await waitReal(tester, () => report != null);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Thanks! Your report is on its way.'), findsOneWidget);
+
+    await tester.pump(SentConfirmation.visibleFor);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(SentConfirmation.noteKey), findsNothing);
+  });
+
+  testWidgets('walking away is not congratulated', (tester) async {
+    await tester.pumpWidget(hostApp());
+
+    unawaited(SquawkController.instance.show());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(CaptureOverlay.closeButtonKey));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(SentConfirmation.noteKey), findsNothing);
   });
 
   testWidgets('an empty comment travels as null, not an empty string',

@@ -64,6 +64,16 @@ void main() {
 
     // The old sheet was a fixed fraction of the screen and could starve its
     // own inputs of height. The new layout must always show all of them.
+    testWidgets('the form says what a report includes', (tester) async {
+      await openCapture(tester);
+
+      expect(
+        find.textContaining('screenshot, device info'),
+        findsOneWidget,
+        reason: 'the reporter must know what travels with their words',
+      );
+    });
+
     testWidgets('every input is visible on a phone-sized screen',
         (tester) async {
       tester.view.devicePixelRatio = 1.0;

@@ -22,6 +22,7 @@ class CaptureOverlay extends StatefulWidget {
     required this.askReporterEmail,
     required this.onSubmit,
     required this.onDismiss,
+    required this.onRetired,
   });
 
   final ui.Image image;
@@ -35,6 +36,11 @@ class CaptureOverlay extends StatefulWidget {
 
   final VoidCallback onDismiss;
 
+  /// Called when this overlay instance leaves the tree, exit animation
+  /// included. The session decides whether that means its image can go —
+  /// another instance may still be showing it.
+  final VoidCallback onRetired;
+
   static const Key closeButtonKey = Key('squawk_close_button');
   static const Key undoButtonKey = Key('squawk_undo_button');
   static const Key discardButtonKey = Key('squawk_discard_button');
@@ -45,16 +51,34 @@ class CaptureOverlay extends StatefulWidget {
 }
 
 class _CaptureOverlayState extends State<CaptureOverlay>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final _text = TextEditingController();
   final _email = TextEditingController();
 
+  /// Drives the entrance: chrome slides in while the screenshot settles into
+  /// its frame. Reversed, faster, on dismiss — leaving should feel lighter
+  /// than arriving.
+  late final AnimationController _entrance;
+  late final CurvedAnimation _eased;
+
   bool _submitting = false;
   bool _confirmingDiscard = false;
+  bool _leaving = false;
 
   @override
   void initState() {
     super.initState();
+    _entrance = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 160),
+    );
+    _eased = CurvedAnimation(
+      parent: _entrance,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _entrance.forward();
     // For the Android back button. Registered observers are asked in order,
     // so a host navigator with routes to pop handles back first — same
     // limitation the feedback package had. At the host's root route, back
@@ -66,9 +90,12 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _eased.dispose();
+    _entrance.dispose();
     _text.dispose();
     _email.dispose();
     super.dispose();
+    widget.onRetired();
   }
 
   @override
@@ -91,8 +118,17 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   bool get _hasContent =>
       widget.annotations.hasAnnotations || _text.text.trim().isNotEmpty;
 
+  /// Plays the exit and only then tells the host — so walking away gets the
+  /// same care as arriving.
+  Future<void> _dismiss() async {
+    if (_leaving) return;
+    _leaving = true;
+    await _entrance.reverse();
+    widget.onDismiss();
+  }
+
   void _requestClose() {
-    if (_submitting) return;
+    if (_submitting || _leaving) return;
     // Back (or a second close) while the confirm is up reads as "never
     // mind" — the safe choice, matching how dialogs behave everywhere else.
     if (_confirmingDiscard) {
@@ -102,7 +138,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     if (_hasContent) {
       setState(() => _confirmingDiscard = true);
     } else {
-      widget.onDismiss();
+      _dismiss();
     }
   }
 
@@ -121,37 +157,54 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: theme.scaffoldBackgroundColor,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          AnimatedPadding(
-            duration: const Duration(milliseconds: 150),
-            curve: Curves.easeOut,
-            // Lifts the form above the keyboard; the screenshot shrinks to
-            // make the room.
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.viewInsetsOf(context).bottom,
-            ),
-            child: SafeArea(
-              // The form handles the bottom inset itself, so it collapses
-              // when the keyboard covers the navigation bar.
-              bottom: false,
-              child: Column(
-                children: [
-                  _toolbar(theme),
-                  Expanded(child: _canvasWithHint(theme)),
-                  _formPanel(theme),
-                ],
+    return FadeTransition(
+      opacity: _eased,
+      child: Material(
+        color: theme.scaffoldBackgroundColor,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AnimatedPadding(
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              // Lifts the form above the keyboard; the screenshot shrinks to
+              // make the room.
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: SafeArea(
+                // The form handles the bottom inset itself, so it collapses
+                // when the keyboard covers the navigation bar.
+                bottom: false,
+                child: Column(
+                  children: [
+                    _slideIn(from: const Offset(0, -0.6), _toolbar(theme)),
+                    Expanded(
+                      // The screenshot settles from slightly over-scale into
+                      // its frame — the screen becoming a photo.
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: 1.06, end: 1.0)
+                            .animate(_eased),
+                        child: _canvasWithHint(theme),
+                      ),
+                    ),
+                    _slideIn(from: const Offset(0, 0.4), _formPanel(theme)),
+                  ],
+                ),
               ),
             ),
-          ),
-          if (_confirmingDiscard) _discardConfirm(theme),
-        ],
+            if (_confirmingDiscard) _discardConfirm(theme),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _slideIn(Widget child, {required Offset from}) => SlideTransition(
+        position: Tween<Offset>(begin: from, end: Offset.zero)
+            .animate(_eased),
+        child: child,
+      );
 
   Widget _toolbar(ThemeData theme) {
     return Padding(
@@ -305,7 +358,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                     ),
                     TextButton(
                       key: CaptureOverlay.discardButtonKey,
-                      onPressed: widget.onDismiss,
+                      onPressed: _dismiss,
                       child: Text(
                         'Discard',
                         style: TextStyle(color: theme.colorScheme.error),
