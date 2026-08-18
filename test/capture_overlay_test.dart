@@ -88,6 +88,21 @@ void main() {
       expect(find.byType(AnnotationCanvas), findsOneWidget);
     });
 
+    // Three tools, four colors and undo have to coexist with the close
+    // button on the narrowest phones without clipping or overflow stripes.
+    testWidgets('the toolbar fits a narrow phone', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(360, 800);
+      addTearDown(tester.view.reset);
+
+      await openCapture(tester);
+
+      expect(find.byKey(CaptureOverlay.closeButtonKey), findsOneWidget);
+      expect(find.byKey(CaptureOverlay.textToolKey), findsOneWidget);
+      expect(find.byKey(CaptureOverlay.undoButtonKey), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('the keyboard pushes the form up, not over it',
         (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -162,6 +177,101 @@ void main() {
       await tester.pumpAndSettle();
       await draw(tester);
       expect(controller.annotations.last, isA<StrokeAnnotation>());
+    });
+
+    testWidgets('a tap with the text tool writes a note onto the shot',
+        (tester) async {
+      await openCapture(tester);
+      await tester.tap(find.byKey(CaptureOverlay.textToolKey));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tap the screenshot to add a note'), findsOneWidget,
+          reason: 'the hint follows the tool in hand');
+
+      await tester.tap(find.byType(AnnotationCanvas), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('Add a note'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(CaptureOverlay.labelInputKey),
+        'wrong price here',
+      );
+      await tester.tap(find.byKey(CaptureOverlay.labelSaveKey));
+      await tester.pumpAndSettle();
+
+      final label =
+          canvasOf(tester).controller.annotations.single as TextAnnotation;
+      expect(label.text, 'wrong price here');
+      expect(find.byKey(CaptureOverlay.labelInputKey), findsNothing);
+    });
+
+    testWidgets('cancelling the note editor leaves nothing behind',
+        (tester) async {
+      await openCapture(tester);
+      await tester.tap(find.byKey(CaptureOverlay.textToolKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(AnnotationCanvas), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(CaptureOverlay.labelInputKey),
+        'never mind',
+      );
+      await tester.tap(find.byKey(CaptureOverlay.labelCancelKey));
+      await tester.pumpAndSettle();
+
+      expect(canvasOf(tester).controller.hasAnnotations, isFalse);
+    });
+
+    testWidgets('saving an empty note adds nothing', (tester) async {
+      await openCapture(tester);
+      await tester.tap(find.byKey(CaptureOverlay.textToolKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(AnnotationCanvas), warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(CaptureOverlay.labelSaveKey));
+      await tester.pumpAndSettle();
+
+      expect(canvasOf(tester).controller.hasAnnotations, isFalse);
+      expect(find.byKey(CaptureOverlay.labelInputKey), findsNothing,
+          reason: 'the editor closes rather than nagging');
+    });
+
+    testWidgets('tapping an existing note reopens it for editing',
+        (tester) async {
+      await openCapture(tester);
+      await tester.tap(find.byKey(CaptureOverlay.textToolKey));
+      await tester.pumpAndSettle();
+
+      final canvasCenter =
+          tester.getCenter(find.byType(AnnotationCanvas));
+      await tester.tapAt(canvasCenter);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(CaptureOverlay.labelInputKey),
+        'first draft',
+      );
+      await tester.tap(find.byKey(CaptureOverlay.labelSaveKey));
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(canvasCenter);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit note'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(CaptureOverlay.labelInputKey))
+            .controller!
+            .text,
+        'first draft',
+        reason: 'editing starts from the words already there',
+      );
+
+      await tester.tap(find.byKey(CaptureOverlay.labelDeleteKey));
+      await tester.pumpAndSettle();
+
+      expect(canvasOf(tester).controller.hasAnnotations, isFalse);
     });
 
     testWidgets('tapping a color dot changes the marker', (tester) async {

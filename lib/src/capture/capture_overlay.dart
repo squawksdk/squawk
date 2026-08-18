@@ -45,6 +45,11 @@ class CaptureOverlay extends StatefulWidget {
   static const Key undoButtonKey = Key('squawk_undo_button');
   static const Key penToolKey = Key('squawk_pen_tool');
   static const Key arrowToolKey = Key('squawk_arrow_tool');
+  static const Key textToolKey = Key('squawk_text_tool');
+  static const Key labelInputKey = Key('squawk_label_input');
+  static const Key labelSaveKey = Key('squawk_label_save');
+  static const Key labelCancelKey = Key('squawk_label_cancel');
+  static const Key labelDeleteKey = Key('squawk_label_delete');
   static const Key discardButtonKey = Key('squawk_discard_button');
   static const Key keepEditingButtonKey = Key('squawk_keep_editing_button');
 
@@ -66,6 +71,11 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   bool _submitting = false;
   bool _confirmingDiscard = false;
   bool _leaving = false;
+
+  /// Set while the label editor is open: where a new label would land, or
+  /// which existing one is being reworded.
+  ({Offset point, TextAnnotation? existing})? _labelEdit;
+  final _labelText = TextEditingController();
 
   @override
   void initState() {
@@ -96,6 +106,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     _entrance.dispose();
     _text.dispose();
     _email.dispose();
+    _labelText.dispose();
     super.dispose();
     widget.onRetired();
   }
@@ -120,6 +131,32 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   bool get _hasContent =>
       widget.annotations.hasAnnotations || _text.text.trim().isNotEmpty;
 
+  /// A tap with the text tool: rewording the label it landed on, or writing
+  /// a new one where it did not.
+  void _onLabelRequested(Offset imagePoint) {
+    final existing = widget.annotations.labelAt(imagePoint);
+    _labelText.text = existing?.text ?? '';
+    setState(() => _labelEdit = (point: imagePoint, existing: existing));
+  }
+
+  void _saveLabel() {
+    final edit = _labelEdit;
+    if (edit == null) return;
+
+    if (edit.existing != null) {
+      widget.annotations.updateLabel(edit.existing!, _labelText.text);
+    } else {
+      widget.annotations.addLabel(edit.point, _labelText.text);
+    }
+    setState(() => _labelEdit = null);
+  }
+
+  void _deleteLabel() {
+    final existing = _labelEdit?.existing;
+    if (existing != null) widget.annotations.updateLabel(existing, '');
+    setState(() => _labelEdit = null);
+  }
+
   /// Plays the exit and only then tells the host — so walking away gets the
   /// same care as arriving.
   Future<void> _dismiss() async {
@@ -131,10 +168,14 @@ class _CaptureOverlayState extends State<CaptureOverlay>
 
   void _requestClose() {
     if (_submitting || _leaving) return;
-    // Back (or a second close) while the confirm is up reads as "never
-    // mind" — the safe choice, matching how dialogs behave everywhere else.
+    // Back (or a second close) while a dialog is up reads as "never mind" —
+    // the safe choice, matching how dialogs behave everywhere else.
     if (_confirmingDiscard) {
       setState(() => _confirmingDiscard = false);
+      return;
+    }
+    if (_labelEdit != null) {
+      setState(() => _labelEdit = null);
       return;
     }
     if (_hasContent) {
@@ -185,8 +226,10 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                       // The screenshot settles from slightly over-scale into
                       // its frame — the screen becoming a photo.
                       child: ScaleTransition(
-                        scale: Tween<double>(begin: 1.06, end: 1.0)
-                            .animate(_eased),
+                        scale: Tween<double>(
+                          begin: 1.06,
+                          end: 1.0,
+                        ).animate(_eased),
                         child: _canvasWithHint(theme),
                       ),
                     ),
@@ -195,6 +238,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                 ),
               ),
             ),
+            if (_labelEdit != null) _labelEditor(theme),
             if (_confirmingDiscard) _discardConfirm(theme),
           ],
         ),
@@ -203,10 +247,9 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   }
 
   Widget _slideIn(Widget child, {required Offset from}) => SlideTransition(
-        position: Tween<Offset>(begin: from, end: Offset.zero)
-            .animate(_eased),
-        child: child,
-      );
+    position: Tween<Offset>(begin: from, end: Offset.zero).animate(_eased),
+    child: child,
+  );
 
   Widget _toolbar(ThemeData theme) {
     return Padding(
@@ -220,44 +263,68 @@ class _CaptureOverlayState extends State<CaptureOverlay>
             tooltip: 'Close',
           ),
           const Spacer(),
-          ListenableBuilder(
-            listenable: widget.annotations,
-            builder: (context, _) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _ToolButton(
-                  key: CaptureOverlay.penToolKey,
-                  icon: Icons.gesture,
-                  label: 'Pen tool',
-                  selected: widget.annotations.tool == AnnotationTool.pen,
-                  onTap: () =>
-                      widget.annotations.tool = AnnotationTool.pen,
-                ),
-                _ToolButton(
-                  key: CaptureOverlay.arrowToolKey,
-                  icon: Icons.north_east,
-                  label: 'Arrow tool',
-                  selected: widget.annotations.tool == AnnotationTool.arrow,
-                  onTap: () =>
-                      widget.annotations.tool = AnnotationTool.arrow,
-                ),
-                const SizedBox(width: 8),
-                for (final color in annotationColors)
-                  _ColorDot(
-                    color: color,
-                    selected: widget.annotations.color == color,
-                    onTap: () => widget.annotations.color = color,
-                  ),
-                const SizedBox(width: 4),
-                IconButton(
-                  key: CaptureOverlay.undoButtonKey,
-                  onPressed: widget.annotations.canUndo
-                      ? widget.annotations.undo
-                      : null,
-                  icon: const Icon(Icons.undo),
-                  tooltip: 'Undo drawing',
-                ),
-              ],
+          // scaleDown, so a narrow phone shrinks the controls a little
+          // instead of clipping the undo button off the edge.
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: ListenableBuilder(
+                listenable: widget.annotations,
+                builder:
+                    (context, _) => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ToolButton(
+                          key: CaptureOverlay.penToolKey,
+                          icon: Icons.gesture,
+                          label: 'Pen tool',
+                          selected:
+                              widget.annotations.tool == AnnotationTool.pen,
+                          onTap:
+                              () =>
+                                  widget.annotations.tool = AnnotationTool.pen,
+                        ),
+                        _ToolButton(
+                          key: CaptureOverlay.arrowToolKey,
+                          icon: Icons.north_east,
+                          label: 'Arrow tool',
+                          selected:
+                              widget.annotations.tool == AnnotationTool.arrow,
+                          onTap:
+                              () =>
+                                  widget.annotations.tool =
+                                      AnnotationTool.arrow,
+                        ),
+                        _ToolButton(
+                          key: CaptureOverlay.textToolKey,
+                          icon: Icons.text_fields,
+                          label: 'Text tool',
+                          selected:
+                              widget.annotations.tool == AnnotationTool.text,
+                          onTap:
+                              () =>
+                                  widget.annotations.tool = AnnotationTool.text,
+                        ),
+                        const SizedBox(width: 8),
+                        for (final color in annotationColors)
+                          _ColorDot(
+                            color: color,
+                            selected: widget.annotations.color == color,
+                            onTap: () => widget.annotations.color = color,
+                          ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          key: CaptureOverlay.undoButtonKey,
+                          onPressed:
+                              widget.annotations.canUndo
+                                  ? widget.annotations.undo
+                                  : null,
+                          icon: const Icon(Icons.undo),
+                          tooltip: 'Undo drawing',
+                        ),
+                      ],
+                    ),
+              ),
             ),
           ),
         ],
@@ -278,6 +345,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
               child: AnnotationCanvas(
                 image: widget.image,
                 controller: widget.annotations,
+                onLabelRequested: _onLabelRequested,
               ),
             ),
           ),
@@ -290,29 +358,34 @@ class _CaptureOverlayState extends State<CaptureOverlay>
             child: IgnorePointer(
               child: ListenableBuilder(
                 listenable: widget.annotations,
-                builder: (context, _) => AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: widget.annotations.hasAnnotations ? 0 : 1,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.inverseSurface
-                            .withValues(alpha: 0.75),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'Draw on the screenshot to point at the problem',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onInverseSurface,
+                builder:
+                    (context, _) => AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: widget.annotations.hasAnnotations ? 0 : 1,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.inverseSurface.withValues(
+                              alpha: 0.75,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            widget.annotations.tool == AnnotationTool.text
+                                ? 'Tap the screenshot to add a note'
+                                : 'Draw on the screenshot to point at the '
+                                    'problem',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onInverseSurface,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
               ),
             ),
           ),
@@ -333,6 +406,87 @@ class _CaptureOverlayState extends State<CaptureOverlay>
         askReporterEmail: widget.askReporterEmail,
         busy: _submitting,
       ),
+    );
+  }
+
+  Widget _labelEditor(ThemeData theme) {
+    final editing = _labelEdit?.existing != null;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _labelEdit = null),
+          child: ColoredBox(color: Colors.black.withValues(alpha: 0.5)),
+        ),
+        // Sits in the upper half on purpose, clear of the keyboard the
+        // autofocus is about to raise.
+        Align(
+          alignment: const Alignment(0, -0.5),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Material(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      editing ? 'Edit note' : 'Add a note',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      key: CaptureOverlay.labelInputKey,
+                      controller: _labelText,
+                      autofocus: true,
+                      maxLength: 100,
+                      maxLines: 2,
+                      minLines: 1,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _saveLabel(),
+                      decoration: const InputDecoration(
+                        hintText: 'What should this point out?',
+                        counterText: '',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (editing)
+                          TextButton(
+                            key: CaptureOverlay.labelDeleteKey,
+                            onPressed: _deleteLabel,
+                            child: Text(
+                              'Remove',
+                              style: TextStyle(color: theme.colorScheme.error),
+                            ),
+                          ),
+                        const Spacer(),
+                        TextButton(
+                          key: CaptureOverlay.labelCancelKey,
+                          onPressed: () => setState(() => _labelEdit = null),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          key: CaptureOverlay.labelSaveKey,
+                          onPressed: _saveLabel,
+                          child: Text(editing ? 'Save' : 'Add'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -360,8 +514,9 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                   children: [
                     Text(
                       'Discard this report?',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -371,8 +526,8 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                     const SizedBox(height: 20),
                     FilledButton(
                       key: CaptureOverlay.keepEditingButtonKey,
-                      onPressed: () =>
-                          setState(() => _confirmingDiscard = false),
+                      onPressed:
+                          () => setState(() => _confirmingDiscard = false),
                       child: const Text('Keep editing'),
                     ),
                     TextButton(
@@ -424,20 +579,21 @@ class _ToolButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: selected
-                  ? theme.colorScheme.primaryContainer
-                  : const Color(0x00000000),
+              color:
+                  selected
+                      ? theme.colorScheme.primaryContainer
+                      : const Color(0x00000000),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
               icon,
               size: 20,
-              color: selected
-                  ? theme.colorScheme.onPrimaryContainer
-                  : theme.colorScheme.onSurfaceVariant,
+              color:
+                  selected
+                      ? theme.colorScheme.onPrimaryContainer
+                      : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -477,9 +633,10 @@ class _ColorDot extends StatelessWidget {
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              border: selected
-                  ? Border.all(color: theme.colorScheme.onSurface, width: 2)
-                  : null,
+              border:
+                  selected
+                      ? Border.all(color: theme.colorScheme.onSurface, width: 2)
+                      : null,
             ),
           ),
         ),

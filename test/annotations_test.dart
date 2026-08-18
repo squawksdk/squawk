@@ -185,6 +185,98 @@ void main() {
     });
   });
 
+  group('the text label tool', () {
+    AnnotationController labelController() =>
+        controllerWith()..tool = AnnotationTool.text;
+
+    test('a label lands where it was placed, in the selected color', () {
+      final controller = labelController()..color = annotationColors.last;
+
+      final label = controller.addLabel(const Offset(40, 60), 'wrong price');
+
+      expect(label, same(controller.annotations.single));
+      expect(label!.position, const Offset(40, 60));
+      expect(label.text, 'wrong price');
+      expect(label.color, annotationColors.last);
+    });
+
+    test('an empty or whitespace label is refused', () {
+      final controller = labelController();
+
+      expect(controller.addLabel(Offset.zero, ''), isNull);
+      expect(controller.addLabel(Offset.zero, '   '), isNull);
+      expect(controller.hasAnnotations, isFalse);
+    });
+
+    test('surrounding whitespace is trimmed away', () {
+      final controller = labelController();
+
+      final label = controller.addLabel(Offset.zero, '  too small  ');
+
+      expect(label!.text, 'too small');
+    });
+
+    // The text tool places on tap; a drag must not paint anything.
+    test('dragging in text mode draws nothing', () {
+      final controller = labelController();
+
+      controller.startStroke(Offset.zero);
+      controller.extendStroke(const Offset(50, 50));
+      controller.endStroke();
+
+      expect(controller.hasAnnotations, isFalse);
+    });
+
+    test('editing replaces the words and nothing else', () {
+      final controller = labelController();
+      final label = controller.addLabel(const Offset(10, 10), 'first');
+
+      controller.updateLabel(label!, 'second thoughts');
+
+      expect(label.text, 'second thoughts');
+      expect(controller.annotations.single, same(label));
+    });
+
+    test('editing a label down to nothing removes it', () {
+      final controller = labelController();
+      final label = controller.addLabel(const Offset(10, 10), 'oops');
+
+      controller.updateLabel(label!, '   ');
+
+      expect(controller.hasAnnotations, isFalse);
+    });
+
+    test('a tap on an existing label finds it, with finger slop', () {
+      final controller = labelController();
+      final label = controller.addLabel(const Offset(100, 100), 'here');
+
+      expect(controller.labelAt(const Offset(105, 105)), same(label));
+      expect(
+        controller.labelAt(const Offset(95, 95)),
+        same(label),
+        reason: 'a near miss just outside the box still counts',
+      );
+      expect(controller.labelAt(const Offset(600, 600)), isNull);
+    });
+
+    test('overlapping labels resolve to the one drawn on top', () {
+      final controller = labelController();
+      controller.addLabel(const Offset(100, 100), 'under');
+      final top = controller.addLabel(const Offset(102, 102), 'over');
+
+      expect(controller.labelAt(const Offset(104, 104)), same(top));
+    });
+
+    test('undo removes a label like any other annotation', () {
+      final controller = labelController();
+      controller.addLabel(Offset.zero, 'gone soon');
+
+      controller.undo();
+
+      expect(controller.hasAnnotations, isFalse);
+    });
+  });
+
   test('the annotation list cannot be mutated from outside', () {
     final controller = controllerWith();
     controller.startStroke(Offset.zero);

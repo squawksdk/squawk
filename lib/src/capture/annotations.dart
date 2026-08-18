@@ -1,6 +1,5 @@
-import 'dart:ui';
-
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 
 /// One thing the reporter placed on the screenshot.
 ///
@@ -138,8 +137,68 @@ final class ArrowAnnotation implements Annotation {
   }
 }
 
-/// What a drag on the canvas produces.
-enum AnnotationTool { pen, arrow }
+/// Words placed on the screenshot, naming the problem where it happens.
+final class TextAnnotation implements Annotation {
+  TextAnnotation({
+    required this.position,
+    required String text,
+    required this.color,
+    required this.fontSize,
+  }) : _text = text;
+
+  /// Top-left corner of the words, in image pixels.
+  final Offset position;
+
+  final Color color;
+
+  /// In image pixels, like every annotation measurement.
+  final double fontSize;
+
+  String _text;
+  String get text => _text;
+  set text(String value) {
+    _text = value;
+    _painter = null;
+  }
+
+  /// Laying text out is not free, and the canvas repaints every frame of a
+  /// drag; the layout is kept until the words change.
+  TextPainter? _painter;
+
+  TextPainter get _laidOut => _painter ??= TextPainter(
+        text: TextSpan(
+          text: _text,
+          style: TextStyle(
+            color: color,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w700,
+            // A screenshot can be any color; the shadow keeps the words
+            // legible on all of them without a background plate.
+            shadows: [
+              Shadow(
+                color: const Color(0xB3000000),
+                blurRadius: fontSize * 0.25,
+                offset: Offset(0, fontSize * 0.06),
+              ),
+            ],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: fontSize * 16);
+
+  /// Whether an image-space point lands on these words. Padded by half the
+  /// font size: fingers are fat and labels are small.
+  bool hitTest(Offset point) {
+    final slop = fontSize / 2;
+    return (position & _laidOut.size).inflate(slop).contains(point);
+  }
+
+  @override
+  void draw(Canvas canvas) => _laidOut.paint(canvas, position);
+}
+
+/// What a tap or drag on the canvas produces.
+enum AnnotationTool { pen, arrow, text }
 
 /// The marker colors offered to the reporter. Red first: it is what people
 /// reach for to point at a problem.
@@ -196,7 +255,7 @@ class AnnotationController extends ChangeNotifier {
     // drawing in progress wins; starting another would corrupt it.
     if (_active != null) return;
 
-    final annotation = switch (_tool) {
+    final Annotation? annotation = switch (_tool) {
       AnnotationTool.pen => StrokeAnnotation(
           start: imagePoint,
           color: _color,
@@ -208,7 +267,10 @@ class AnnotationController extends ChangeNotifier {
           color: _color,
           strokeWidth: strokeWidth,
         ),
+      // Labels are placed by tap, not drawn by drag.
+      AnnotationTool.text => null,
     };
+    if (annotation == null) return;
     _active = annotation;
     _annotations.add(annotation);
     notifyListeners();
@@ -235,6 +297,50 @@ class AnnotationController extends ChangeNotifier {
     }
     _active = null;
     notifyListeners();
+  }
+
+  /// Words the label tool renders, sized to read like body text whatever
+  /// the capture's pixel ratio.
+  double get labelFontSize => strokeWidth * 4;
+
+  /// Places a label, or refuses one with nothing to say.
+  TextAnnotation? addLabel(Offset imagePoint, String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+
+    final label = TextAnnotation(
+      position: imagePoint,
+      text: trimmed,
+      color: _color,
+      fontSize: labelFontSize,
+    );
+    _annotations.add(label);
+    notifyListeners();
+    return label;
+  }
+
+  /// Rewords a label; rewording it down to nothing removes it, because an
+  /// empty label marks nothing.
+  void updateLabel(TextAnnotation label, String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      _annotations.remove(label);
+    } else {
+      label.text = trimmed;
+    }
+    notifyListeners();
+  }
+
+  /// The topmost label under an image-space point, if any — so a tap can
+  /// mean "edit these words" rather than "add more".
+  TextAnnotation? labelAt(Offset imagePoint) {
+    for (final annotation in _annotations.reversed) {
+      if (annotation case final TextAnnotation label
+          when label.hitTest(imagePoint)) {
+        return label;
+      }
+    }
+    return null;
   }
 
   /// Removes the most recent annotation. Ignored mid-drag: undoing the stroke

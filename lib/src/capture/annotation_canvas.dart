@@ -48,10 +48,15 @@ class AnnotationCanvas extends StatelessWidget {
     super.key,
     required this.image,
     required this.controller,
+    this.onLabelRequested,
   });
 
   final ui.Image image;
   final AnnotationController controller;
+
+  /// A tap while the text tool is in hand, in image pixels. The owner shows
+  /// the editor; the canvas only knows where.
+  final ValueChanged<Offset>? onLabelRequested;
 
   Size get _imageSize =>
       Size(image.width.toDouble(), image.height.toDouble());
@@ -68,6 +73,19 @@ class AnnotationCanvas extends StatelessWidget {
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          // Taps are dispatched by hand rather than left to the gesture
+          // arena: with a tap recognizer registered, a plain tap would no
+          // longer reach the pan callbacks that give the pen its dot.
+          onTapUp: (d) {
+            final point = toImage(d.localPosition);
+            if (controller.tool == AnnotationTool.text) {
+              onLabelRequested?.call(point);
+            } else {
+              controller
+                ..startStroke(point)
+                ..endStroke();
+            }
+          },
           onPanStart: (d) => controller.startStroke(toImage(d.localPosition)),
           onPanUpdate: (d) => controller.extendStroke(toImage(d.localPosition)),
           onPanEnd: (_) => controller.endStroke(),
@@ -104,7 +122,12 @@ class _AnnotatedImagePainter extends CustomPainter {
     canvas
       ..save()
       ..translate(displayRect.left, displayRect.top)
-      ..scale(scale);
+      ..scale(scale)
+      // The composite is cropped to the image, so the preview must be too —
+      // a label running past the edge has to look cut off before it is sent.
+      ..clipRect(
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      );
 
     // Drawn through the same transform as the annotations so the two can
     // never disagree about where a pixel is.
