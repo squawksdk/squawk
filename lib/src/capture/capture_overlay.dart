@@ -211,11 +211,15 @@ class _CaptureOverlayState extends State<CaptureOverlay>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            AnimatedPadding(
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeOut,
+            Padding(
               // Lifts the form above the keyboard; the screenshot shrinks to
               // make the room.
+              //
+              // Deliberately not AnimatedPadding. The platform already
+              // animates viewInsets frame by frame as the keyboard slides,
+              // so easing toward it meant chasing a moving target: the form
+              // lagged the keyboard and then caught up. Tracking the inset
+              // directly is what makes the sheet look attached to it.
               padding: EdgeInsets.only(
                 bottom: MediaQuery.viewInsetsOf(context).bottom,
               ),

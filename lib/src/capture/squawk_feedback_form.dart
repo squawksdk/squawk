@@ -31,6 +31,7 @@ class SquawkFeedbackForm extends StatelessWidget {
   static const Key textKey = Key('squawk_text_input');
   static const Key submitKey = Key('squawk_submit_button');
   static const Key emailKey = Key('squawk_email_input');
+  static const Key dismissKeyboardKey = Key('squawk_dismiss_keyboard');
 
   /// One decoration for every field, so the sheet reads as a single form
   /// rather than a stack of unrelated inputs.
@@ -68,79 +69,131 @@ class SquawkFeedbackForm extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        // Clears the system navigation bar and the home indicator. Goes to
-        // zero on its own when the keyboard covers them.
-        12 + MediaQuery.paddingOf(context).bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'What went wrong?',
-            style: theme.textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            key: textKey,
-            style: theme.textTheme.bodyMedium,
-            controller: textController,
-            // Grows with what the reporter writes instead of being pinned at
-            // two lines, and shrinks back when the keyboard takes the room.
-            minLines: 2,
-            maxLines: 4,
-            textInputAction: TextInputAction.newline,
-            keyboardType: TextInputType.multiline,
-            decoration: _fieldDecoration(theme, 'Describe what happened'),
-          ),
-          if (askReporterEmail) ...[
+    // Getting the keyboard back down.
+    //
+    // The description field is multiline, so on iOS its return key inserts a
+    // newline and the keyboard has no Done key of its own. iOS has no system
+    // back gesture either, which left no way out at all — Android only
+    // escaped the same code because of its back button.
+    //
+    // Tapping the rest of the screen is not available to us: nearly all of it
+    // is the annotation canvas, where a tap draws. So dismissal lives in the
+    // two places that cannot collide with anything — the form's own empty
+    // space, and an explicit Done beside the field label.
+    void dismissKeyboard() => FocusScope.of(context).unfocus();
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: dismissKeyboard,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          // Clears the system navigation bar and the home indicator. Goes to
+          // zero on its own when the keyboard covers them.
+          12 + MediaQuery.paddingOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'What went wrong?',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                // Present in the tree whether or not the keyboard is up, so
+                // the header keeps one height. Removing it on the frame the
+                // keyboard finishes closing shrank this row and jerked
+                // everything below it — a snap at the end of an otherwise
+                // smooth slide. It fades instead, and stops being tappable
+                // or readable by a screen reader while it is invisible.
+                AnimatedOpacity(
+                  opacity: keyboardUp ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOut,
+                  child: IgnorePointer(
+                    ignoring: !keyboardUp,
+                    child: ExcludeSemantics(
+                      excluding: !keyboardUp,
+                      child: TextButton(
+                        key: dismissKeyboardKey,
+                        onPressed: dismissKeyboard,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        child: const Text('Done'),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             TextField(
-              key: emailKey,
+              key: textKey,
               style: theme.textTheme.bodyMedium,
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => busy ? null : onSubmit(),
-              decoration: _fieldDecoration(
-                theme,
-                'Your email (optional)',
-                icon: Icons.alternate_email,
+              controller: textController,
+              // Grows with what the reporter writes instead of being pinned at
+              // two lines, and shrinks back when the keyboard takes the room.
+              minLines: 2,
+              maxLines: 4,
+              textInputAction: TextInputAction.newline,
+              keyboardType: TextInputType.multiline,
+              decoration: _fieldDecoration(theme, 'Describe what happened'),
+            ),
+            if (askReporterEmail) ...[
+              const SizedBox(height: 12),
+              TextField(
+                key: emailKey,
+                style: theme.textTheme.bodyMedium,
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => busy ? null : onSubmit(),
+                decoration: _fieldDecoration(
+                  theme,
+                  'Your email (optional)',
+                  icon: Icons.alternate_email,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            FilledButton(
+              key: submitKey,
+              onPressed: busy ? null : onSubmit,
+              child:
+                  busy
+                      ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : const Text('Send report'),
+            ),
+            const SizedBox(height: 8),
+            // The reporter deserves to know what travels with their words —
+            // and their QA lead needs them to know it.
+            Text(
+              'Sends your notes with the screenshot, device info and '
+              'recent app logs.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          FilledButton(
-            key: submitKey,
-            onPressed: busy ? null : onSubmit,
-            child: busy
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Send report'),
-          ),
-          const SizedBox(height: 8),
-          // The reporter deserves to know what travels with their words —
-          // and their QA lead needs them to know it.
-          Text(
-            'Sends your notes with the screenshot, device info and '
-            'recent app logs.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
