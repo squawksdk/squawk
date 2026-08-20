@@ -11,6 +11,13 @@ import 'package:squawk/src/squawk_controller.dart';
 // ignore: implementation_imports
 import 'package:squawk/src/upload/spool.dart';
 
+const _endpointFromEnv = String.fromEnvironment('SQUAWK_ENDPOINT');
+
+/// Null unless SQUAWK_ENDPOINT was defined, so the demo falls back to the
+/// same endpoint a real app would use.
+final Uri? _endpointOverride =
+    _endpointFromEnv.isEmpty ? null : Uri.parse(_endpointFromEnv);
+
 void main() {
   runApp(
     Squawk(
@@ -22,6 +29,14 @@ void main() {
         'SQUAWK_API_KEY',
         defaultValue: 'sqk_example_placeholder',
       ),
+      // Point the demo at a Worker other than production, for trying
+      // ingest changes against a real device before they are deployed:
+      //   flutter run --dart-define=SQUAWK_ENDPOINT=https://…/v1/squawks
+      // Empty means the published default. Nobody's own endpoint belongs
+      // in this repo, so it only ever arrives at run time.
+      //
+      // ignore: invalid_use_of_visible_for_testing_member
+      endpoint: _endpointOverride,
       options: const SquawkOptions(
         // On so the demo can be triggered without shaking, e.g. on a
         // simulator or while the phone is tethered.
