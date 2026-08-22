@@ -1,0 +1,40 @@
+// Java on purpose: AGP 9 breaks every plugin that applies the Kotlin
+// Gradle Plugin, and plain Java needs neither KGP nor the conditional
+// workarounds. This plugin exists to get off a dependency that broke that
+// way; it should not be able to break the same way itself.
+group 'com.squawksdk.squawk'
+version '0.0.1'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.1'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.squawksdk.squawk'
+    compileSdk 36
+
+    defaultConfig {
+        minSdk 21
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}

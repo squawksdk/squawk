@@ -1,23 +1,19 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shake_gesture_platform_interface/shake_gesture_platform_interface.dart';
 import 'package:squawk/squawk.dart';
 
 import 'support/fakes.dart';
 
 void main() {
-  late FakeShakePlatform shake;
+  late FakeShakeChannel shake;
 
-  setUp(() {
-    resetSquawk();
-    shake = FakeShakePlatform();
-    ShakeGesturePlatform.instance = shake;
-  });
+  setUp(resetSquawk);
 
   // The reporter is holding the phone when the sheet opens, so a second shake
   // is likely. Without a guard it would stack sheets and send two reports for
   // one bug.
   testWidgets('shaking while the sheet is open does nothing', (tester) async {
+    shake = FakeShakeChannel()..install(tester);
     final capture = FakeCapture(
       result: reportWith(),
       completeImmediately: false,
@@ -38,6 +34,7 @@ void main() {
   });
 
   testWidgets('the trigger works again once the sheet closes', (tester) async {
+    shake = FakeShakeChannel()..install(tester);
     final capture = FakeCapture(
       result: reportWith(),
       completeImmediately: false,

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:shake_gesture/shake_gesture.dart';
 
 import 'capture/report_capture.dart';
 import 'capture/squawk_capture.dart';
@@ -13,6 +12,7 @@ import 'upload/delivery.dart';
 import 'upload/disk_spool_storage.dart';
 import 'upload/http_report_uploader.dart';
 import 'upload/spool.dart';
+import 'shake_trigger.dart';
 import 'squawk_options.dart';
 
 /// Wrap your app in this and a shake opens the report sheet.
@@ -172,11 +172,9 @@ class _SquawkHostState extends State<_SquawkHost> {
     }
 
     if (widget.options.shakeToReport) {
-      content = ShakeGesture(
-        // Deliberately no sensitivity setting: iOS exposes none, and Android
-        // only through a manifest entry, which would break "zero native
-        // setup".
-        onShake: () => Squawk.show(),
+      content = ShakeTrigger(
+        sensitivity: widget.options.shakeSensitivity,
+        onShake: Squawk.show,
         child: content,
       );
     }

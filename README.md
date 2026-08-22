@@ -33,7 +33,8 @@ void main() {
 }
 ```
 
-That's the integration. No native project edits, no platform channels.
+That's the integration. No native project edits, no Info.plist entries, no
+manifest changes.
 
 ## Status and roadmap
 

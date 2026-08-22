@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shake_gesture_platform_interface/shake_gesture_platform_interface.dart';
 import 'package:squawk/squawk.dart';
+import 'package:squawk/src/shake_trigger.dart';
 import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/device_context.dart';
 import 'package:squawk/src/reporter_email_store.dart';
@@ -50,26 +50,35 @@ class FakeCapture implements ReportCapture {
   }
 }
 
-/// Replaces the real shake plugin so a shake can be fired from a test.
-///
-/// `shake_gesture` ships no simulate helper, but the platform interface has a
-/// public setter, which makes the trigger testable without a device.
-class FakeShakePlatform extends ShakeGesturePlatform {
-  final List<VoidCallback> callbacks = [];
+/// Stands in for the native side of the shake channel, so a test can fire
+/// shakes and watch when the sensor would be held.
+class FakeShakeChannel {
+  /// One entry per listen, holding the arguments Dart sent native.
+  final List<Object?> listenArgs = [];
 
-  @override
-  void registerCallback({required VoidCallback onShake}) =>
-      callbacks.add(onShake);
+  MockStreamHandlerEventSink? _sink;
 
-  @override
-  void unregisterCallback({required VoidCallback onShake}) =>
-      callbacks.remove(onShake);
+  /// Whether Dart currently has the channel open — on a device, whether the
+  /// accelerometer would be registered.
+  bool get listening => _sink != null;
 
-  void simulateShake() {
-    for (final callback in [...callbacks]) {
-      callback();
-    }
+  void install(WidgetTester tester) {
+    tester.binding.defaultBinaryMessenger.setMockStreamHandler(
+      shakeEventChannel,
+      MockStreamHandler.inline(
+        onListen: (arguments, events) {
+          listenArgs.add(arguments);
+          _sink = events;
+        },
+        onCancel: (_) => _sink = null,
+      ),
+    );
   }
+
+  void simulateShake() => _sink?.success(null);
+
+  void simulateError(String code, String message) =>
+      _sink?.error(code: code, message: message, details: null);
 }
 
 SquawkReport reportWith({String? text}) =>
@@ -101,6 +110,17 @@ Future<void> waitReal(
 /// there is no channel implementation in a unit test, and the call neither
 /// answers nor throws.
 void resetSquawk({DeviceContextCollector? collector}) {
+  // The shake channel must always be answered: tests run as Android, where
+  // the trigger listens, and an unanswered EventChannel reports a
+  // MissingPluginException through FlutterError, failing whatever test the
+  // Squawk widget happens to be mounted in. Tests about the trigger itself
+  // install a FakeShakeChannel over this default.
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockStreamHandler(
+    shakeEventChannel,
+    MockStreamHandler.inline(onListen: (arguments, events) {}),
+  );
+
   // A real spool would reach path_provider for a directory and a real
   // delivery would reach connectivity_plus for a stream, and neither answers
   // under test.
