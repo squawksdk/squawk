@@ -23,9 +23,20 @@ dependencies:
   http: ^1.6.0
   package_info_plus: ">=8.0.0 <11.0.0"
   path_provider: ">=2.1.5 <3.0.0"
-  shake_gesture: ^2.1.0
-  shake_gesture_platform_interface: ^1.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+# The shake trigger is the package's own native code: the system shake
+# gesture on iOS, a SensorEventListener on Android. Declaring only these
+# two platforms is accurate; everything else the SDK does is pure Dart,
+# and the trigger stands down gracefully elsewhere.
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.squawksdk.squawk
+        pluginClass: SquawkPlugin
+      ios:
+        pluginClass: SquawkPlugin
