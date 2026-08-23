@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// How hard the device must be shaken to open the report sheet.
 ///
 /// Android only. iOS rides the system shake gesture, which Apple does not
@@ -29,6 +31,8 @@ class SquawkOptions {
     this.feedbackButton = false,
     this.captureLogs = true,
     this.askReporterEmail = true,
+    this.theme,
+    this.darkTheme,
   });
 
   /// Whether shaking the device opens the report sheet.
@@ -50,4 +54,25 @@ class SquawkOptions {
 
   /// Whether the report sheet asks the reporter for an email address.
   final bool askReporterEmail;
+
+  /// The theme Squawk's own UI uses.
+  ///
+  /// Squawk renders above your `MaterialApp`, so it cannot read your theme
+  /// and falls back to a plain light or dark one matching the device. Pass
+  /// yours here and the report sheet, the sent note and the floating button
+  /// all match your app instead.
+  ///
+  /// Set this alone and it is used whatever the device is set to, which is
+  /// what an app pinned to one `themeMode` wants. Set [darkTheme] as well to
+  /// follow the device the way `ThemeMode.system` does.
+  ///
+  /// `ThemeData` has no const constructor, so [SquawkOptions] cannot be
+  /// `const` once this is set.
+  final ThemeData? theme;
+
+  /// The theme Squawk's own UI uses while the device is in dark mode.
+  ///
+  /// Only consulted when [theme] is set too. On its own it behaves exactly
+  /// like [theme] — used at both brightnesses.
+  final ThemeData? darkTheme;
 }

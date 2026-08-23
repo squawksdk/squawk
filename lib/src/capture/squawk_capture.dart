@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 import '../squawk_report.dart';
 import 'annotations.dart';
@@ -20,17 +20,31 @@ import 'sent_confirmation.dart';
 /// annotations share one coordinate space from the first stroke, which is
 /// what makes drift (SQUAW-34) impossible rather than merely fixed.
 class SquawkCapture implements ReportCapture {
-  const SquawkCapture({this.askReporterEmail = true});
+  const SquawkCapture({
+    this.askReporterEmail = true,
+    this.theme,
+    this.darkTheme,
+  });
 
   final bool askReporterEmail;
+
+  /// See `SquawkOptions.theme`.
+  final ThemeData? theme;
+
+  /// See `SquawkOptions.darkTheme`.
+  final ThemeData? darkTheme;
 
   /// Screenshots above this are wasted bytes: the capture is capped so a
   /// high-density tablet does not spool 20 MB images.
   static const double maxPixelRatio = 3.0;
 
   @override
-  Widget wrap(Widget child) =>
-      CaptureHost(askReporterEmail: askReporterEmail, child: child);
+  Widget wrap(Widget child) => CaptureHost(
+        askReporterEmail: askReporterEmail,
+        theme: theme,
+        darkTheme: darkTheme,
+        child: child,
+      );
 
   @override
   Future<SquawkReport?> capture(BuildContext context) {
@@ -88,10 +102,19 @@ class CaptureHost extends StatefulWidget {
   const CaptureHost({
     super.key,
     required this.askReporterEmail,
+    required this.theme,
+    required this.darkTheme,
     required this.child,
   });
 
   final bool askReporterEmail;
+
+  /// See `SquawkOptions.theme`.
+  final ThemeData? theme;
+
+  /// See `SquawkOptions.darkTheme`.
+  final ThemeData? darkTheme;
+
   final Widget child;
 
   @override
@@ -231,7 +254,10 @@ class CaptureHostState extends State<CaptureHost> {
           duration: const Duration(milliseconds: 250),
           child: _sentNote == null
               ? const SizedBox.shrink()
-              : const SentConfirmation(),
+              : SentConfirmation(
+                  theme: widget.theme,
+                  darkTheme: widget.darkTheme,
+                ),
         ),
         // The switcher fades the overlay out however the session ended —
         // dismiss animates itself first, submit relies on this alone.
@@ -244,6 +270,8 @@ class CaptureHostState extends State<CaptureHost> {
                   // one's exit fade cross-fades instead of being mistaken for
                   // the same child.
                   key: ValueKey(session),
+                  theme: widget.theme,
+                  darkTheme: widget.darkTheme,
                   child: CaptureOverlay(
                     image: session.image,
                     annotations: session.annotations,

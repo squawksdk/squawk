@@ -207,7 +207,16 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     return FadeTransition(
       opacity: _eased,
       child: Material(
-        color: theme.scaffoldBackgroundColor,
+        // Blended onto an opaque base: a host theme may leave
+        // scaffoldBackgroundColor translucent, and the live app is still
+        // painting under this overlay — it would show through beside the
+        // frozen screenshot.
+        color: Color.alphaBlend(
+          theme.scaffoldBackgroundColor,
+          theme.brightness == Brightness.dark
+              ? const Color(0xFF000000)
+              : const Color(0xFFFFFFFF),
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [
