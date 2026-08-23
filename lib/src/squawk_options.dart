@@ -5,6 +5,9 @@
 enum ShakeSensitivity {
   /// A light shake is enough. For testers who report often and would rather
   /// not rattle the phone.
+  ///
+  /// Vigorous movement such as running or jumping can trigger it. Prefer
+  /// [medium] or [firm] for apps used in motion.
   light,
 
   /// The default, and the same feel as versions before this setting existed.
