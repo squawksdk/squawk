@@ -79,8 +79,12 @@ class Squawk extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final capture =
-        _capture ?? SquawkCapture(askReporterEmail: options.askReporterEmail);
+    final capture = _capture ??
+        SquawkCapture(
+          askReporterEmail: options.askReporterEmail,
+          theme: options.theme,
+          darkTheme: options.darkTheme,
+        );
     return capture.wrap(
       _SquawkHost(
         capture: capture,
@@ -168,7 +172,11 @@ class _SquawkHostState extends State<_SquawkHost> {
     var content = widget.child;
 
     if (widget.options.feedbackButton) {
-      content = FeedbackButton(child: content);
+      content = FeedbackButton(
+        theme: widget.options.theme,
+        darkTheme: widget.options.darkTheme,
+        child: content,
+      );
     }
 
     if (widget.options.shakeToReport) {

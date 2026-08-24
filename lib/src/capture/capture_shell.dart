@@ -1,15 +1,27 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+import 'squawk_theme.dart';
+
 /// The environment Squawk's capture UI needs to exist.
 ///
 /// The capture overlay sits *above* the host app's `MaterialApp`, so nothing
 /// ordinary widgets rely on — MediaQuery, Directionality, Localizations,
 /// Theme, an Overlay for text-selection handles — exists yet. This provides
-/// all of it, and only ever from scratch: reading through to a host theme is
-/// SQUAW-31's job.
+/// all of it: the theme from [SquawkTheme], everything else from scratch.
 class CaptureShell extends StatefulWidget {
-  const CaptureShell({super.key, required this.child});
+  const CaptureShell({
+    super.key,
+    required this.theme,
+    required this.darkTheme,
+    required this.child,
+  });
+
+  /// See `SquawkOptions.theme`.
+  final ThemeData? theme;
+
+  /// See `SquawkOptions.darkTheme`.
+  final ThemeData? darkTheme;
 
   final Widget child;
 
@@ -44,33 +56,24 @@ class _CaptureShellState extends State<CaptureShell> {
 
   @override
   Widget build(BuildContext context) {
-    return MediaQuery.fromView(
-      view: View.of(context),
-      child: Builder(
-        builder: (context) {
-          final dark = MediaQuery.platformBrightnessOf(context) ==
-              Brightness.dark;
-          return Theme(
-            data: dark ? ThemeData.dark() : ThemeData.light(),
-            child: Directionality(
-              textDirection: TextDirection.ltr,
-              child: Localizations(
-                locale: const Locale('en'),
-                delegates: const [
-                  DefaultWidgetsLocalizations.delegate,
-                  DefaultMaterialLocalizations.delegate,
-                  DefaultCupertinoLocalizations.delegate,
-                ],
-                // Text editing wants hardware-keyboard shortcuts and an
-                // Overlay for the selection toolbar; WidgetsApp normally
-                // provides both.
-                child: DefaultTextEditingShortcuts(
-                  child: Overlay(initialEntries: [_entry]),
-                ),
-              ),
-            ),
-          );
-        },
+    return SquawkTheme(
+      theme: widget.theme,
+      darkTheme: widget.darkTheme,
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: Localizations(
+          locale: const Locale('en'),
+          delegates: const [
+            DefaultWidgetsLocalizations.delegate,
+            DefaultMaterialLocalizations.delegate,
+            DefaultCupertinoLocalizations.delegate,
+          ],
+          // Text editing wants hardware-keyboard shortcuts and an Overlay
+          // for the selection toolbar; WidgetsApp normally provides both.
+          child: DefaultTextEditingShortcuts(
+            child: Overlay(initialEntries: [_entry]),
+          ),
+        ),
       ),
     );
   }

@@ -36,6 +36,21 @@ void main() {
 That's the integration. No native project edits, no Info.plist entries, no
 manifest changes.
 
+Squawk draws above your `MaterialApp`, so it cannot read your theme. Hand it
+one and the report sheet, the sent note and the floating button all match
+your app:
+
+```dart
+Squawk(
+  apiKey: 'sq_live_xxxxxxxx',
+  options: SquawkOptions(theme: myTheme, darkTheme: myDarkTheme),
+  child: const MyApp(),
+)
+```
+
+Pass only `theme` and it is used whatever the device is set to — which is
+what you want if your app pins one `themeMode`.
+
 ## Status and roadmap
 
 The SDK is being built in the open. The plan is a free tier that never caps
