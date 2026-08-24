@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -53,6 +54,10 @@ class CaptureOverlay extends StatefulWidget {
   static const Key labelDeleteKey = Key('squawk_label_delete');
   static const Key discardButtonKey = Key('squawk_discard_button');
   static const Key keepEditingButtonKey = Key('squawk_keep_editing_button');
+
+  /// The least screenshot worth showing. Below this the form scrolls rather
+  /// than squeezing the capture out of its own screen.
+  static const double _minCanvasHeight = 120;
 
   @override
   State<CaptureOverlay> createState() => _CaptureOverlayState();
@@ -240,19 +245,49 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                   children: [
                     _slideIn(from: const Offset(0, -0.6), _topBar(theme)),
                     Expanded(
-                      // The screenshot settles from slightly over-scale into
-                      // its frame — the screen becoming a photo.
-                      child: ScaleTransition(
-                        scale: Tween<double>(
-                          begin: 1.06,
-                          end: 1.0,
-                        ).animate(_eased),
-                        child: _canvasWithHint(theme),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => Column(
+                          children: [
+                            Expanded(
+                              // The screenshot settles from slightly
+                              // over-scale into its frame — the screen
+                              // becoming a photo.
+                              child: ScaleTransition(
+                                scale: Tween<double>(
+                                  begin: 1.06,
+                                  end: 1.0,
+                                ).animate(_eased),
+                                child: _canvasWithHint(theme),
+                              ),
+                            ),
+                            _slideIn(
+                              from: const Offset(0, 0.4),
+                              // A landscape phone has less height than the
+                              // tools and the form together want. The
+                              // screenshot gives way first, but never
+                              // entirely — a capture you cannot see is not
+                              // one — so past this point the form scrolls.
+                              ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: math.max(
+                                    0,
+                                    constraints.maxHeight -
+                                        CaptureOverlay._minCanvasHeight,
+                                  ),
+                                ),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    children: [
+                                      _toolStrip(theme),
+                                      _formPanel(theme),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    _slideIn(
-                      from: const Offset(0, 0.4),
-                      Column(children: [_toolStrip(theme), _formPanel(theme)]),
                     ),
                   ],
                 ),
@@ -309,46 +344,66 @@ class _CaptureOverlayState extends State<CaptureOverlay>
       child: ListenableBuilder(
         listenable: widget.annotations,
         builder:
-            (context, _) => Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _ToolButton(
-                  key: CaptureOverlay.penToolKey,
-                  icon: Icons.gesture,
-                  label: 'Pen tool',
-                  selected: widget.annotations.tool == AnnotationTool.pen,
-                  onTap: () => widget.annotations.tool = AnnotationTool.pen,
-                ),
-                _ToolButton(
-                  key: CaptureOverlay.arrowToolKey,
-                  icon: Icons.north_east,
-                  label: 'Arrow tool',
-                  selected: widget.annotations.tool == AnnotationTool.arrow,
-                  onTap: () => widget.annotations.tool = AnnotationTool.arrow,
-                ),
-                _ToolButton(
-                  key: CaptureOverlay.textToolKey,
-                  icon: Icons.text_fields,
-                  label: 'Text tool',
-                  selected: widget.annotations.tool == AnnotationTool.text,
-                  onTap: () => widget.annotations.tool = AnnotationTool.text,
-                ),
-                _ToolButton(
-                  key: CaptureOverlay.moveToolKey,
-                  icon: Icons.open_with,
-                  label: 'Move tool',
-                  selected: widget.annotations.tool == AnnotationTool.move,
-                  onTap: () => widget.annotations.tool = AnnotationTool.move,
-                ),
-                const SizedBox(width: 10),
-                for (final color in annotationColors)
-                  _ColorDot(
-                    color: color,
-                    selected: widget.annotations.color == color,
-                    onTap: () => widget.annotations.color = color,
+            (context, _) => _scrollableWhenTight(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ToolButton(
+                    key: CaptureOverlay.penToolKey,
+                    icon: Icons.gesture,
+                    label: 'Pen tool',
+                    selected: widget.annotations.tool == AnnotationTool.pen,
+                    onTap: () => widget.annotations.tool = AnnotationTool.pen,
                   ),
-              ],
+                  _ToolButton(
+                    key: CaptureOverlay.arrowToolKey,
+                    icon: Icons.north_east,
+                    label: 'Arrow tool',
+                    selected: widget.annotations.tool == AnnotationTool.arrow,
+                    onTap: () => widget.annotations.tool = AnnotationTool.arrow,
+                  ),
+                  _ToolButton(
+                    key: CaptureOverlay.textToolKey,
+                    icon: Icons.text_fields,
+                    label: 'Text tool',
+                    selected: widget.annotations.tool == AnnotationTool.text,
+                    onTap: () => widget.annotations.tool = AnnotationTool.text,
+                  ),
+                  _ToolButton(
+                    key: CaptureOverlay.moveToolKey,
+                    icon: Icons.open_with,
+                    label: 'Move tool',
+                    selected: widget.annotations.tool == AnnotationTool.move,
+                    onTap: () => widget.annotations.tool = AnnotationTool.move,
+                  ),
+                  const SizedBox(width: 10),
+                  for (final color in annotationColors)
+                    _ColorDot(
+                      color: color,
+                      selected: widget.annotations.color == color,
+                      onTap: () => widget.annotations.color = color,
+                    ),
+                ],
+              ),
             ),
+      ),
+    );
+  }
+
+  /// Lets [row] scroll sideways on a phone too narrow for it, and centres it
+  /// everywhere else.
+  ///
+  /// Scrolling rather than scaling: shrinking the strip to fit would take the
+  /// tap targets under the 44px that every accessibility guideline asks for,
+  /// and these are the controls the whole screen exists to offer.
+  Widget _scrollableWhenTight(Widget row) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: row,
+        ),
       ),
     );
   }
