@@ -21,6 +21,21 @@ flutter test
 flutter pub publish --dry-run   # before any release
 ```
 
+## Releasing
+
+In order, once the release PR (version bump + CHANGELOG entry) is merged:
+
+```sh
+git tag -a vX.Y.Z <merge commit> -m "squawk X.Y.Z"
+git push origin vX.Y.Z
+gh release create vX.Y.Z --title "squawk X.Y.Z"   # notes = the CHANGELOG section
+flutter pub publish                                # from a clean main checkout
+```
+
+The tag marks the exact commit pub.dev serves. Tag before publishing —
+the publish is the one step that cannot be redone, so everything else
+comes first.
+
 ## Conventions
 
 - **Apache-2.0.** `LICENSE` at root. Its appendix template
