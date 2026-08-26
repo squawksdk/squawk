@@ -141,6 +141,10 @@ class CaptureHostState extends State<CaptureHost> {
     if (_starting || _session != null) return null;
     _starting = true;
 
+    // Assigned inside the try, returned after it: the finally must run the
+    // moment the overlay is up (or setup bailed), not when the session
+    // eventually resolves — which is why this is not a `return await`.
+    Future<SquawkReport?>? pending;
     try {
       final pixelRatio = math.min(
         View.of(context).devicePixelRatio,
@@ -165,10 +169,11 @@ class CaptureHostState extends State<CaptureHost> {
       );
       setState(() => _session = session);
 
-      return session.completer.future;
+      pending = session.completer.future;
     } finally {
       _starting = false;
     }
+    return pending;
   }
 
   Future<void> _submit(String text, String? email) async {
