@@ -4,8 +4,9 @@ Shake-to-report feedback for Flutter. A tester shakes their phone; an
 annotated screenshot, device and app details, recent logs, and any user
 context you attached are delivered to the developer's inbox.
 
-**Status: placeholder.** `0.0.1` reserves the package name. There is no
-working API yet.
+**Status: released.** `0.1.0` is the first working release; `0.0.1` was a
+name reservation. Published versions are permanent, so treat every release
+as one-way.
 
 ## Layout
 
