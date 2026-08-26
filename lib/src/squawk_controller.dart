@@ -127,9 +127,9 @@ class SquawkController {
 
   /// The last completed report, whichever trigger produced it.
   ///
-  /// This is the stubbed sink: reports currently stop here. The example app
-  /// watches it to show what was captured. It goes away once the spool and
-  /// upload land and reports have a real destination.
+  /// Delivery does not read this — reports reach the inbox through the
+  /// spool. It exists for the example's dev harness, which watches it to
+  /// show on a device what was just captured.
   ValueListenable<SquawkReport?> get lastReport => _lastReport;
   final ValueNotifier<SquawkReport?> _lastReport = ValueNotifier(null);
 

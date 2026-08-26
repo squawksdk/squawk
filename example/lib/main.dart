@@ -1,47 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:squawk/squawk.dart';
-// Demo-only: reports currently stop at a stubbed sink inside the SDK because
-// there is no upload or inbox yet. Watching it is how this app shows what was
-// captured. Delete this import — and the card below — once reports have a
-// real destination.
-// ignore: implementation_imports
-import 'package:squawk/src/squawk_controller.dart';
-// ignore: implementation_imports
-import 'package:squawk/src/upload/spool.dart';
-
-const _endpointFromEnv = String.fromEnvironment('SQUAWK_ENDPOINT');
-
-/// Null unless SQUAWK_ENDPOINT was defined, so the demo falls back to the
-/// same endpoint a real app would use.
-final Uri? _endpointOverride =
-    _endpointFromEnv.isEmpty ? null : Uri.parse(_endpointFromEnv);
 
 void main() {
   runApp(
     Squawk(
-      // Passed at run time so no real key lives in this open-source repo:
-      //   flutter run --dart-define=SQUAWK_API_KEY=sqk_yourkey
-      // Without it the SDK still captures and spools; uploads retry as 401s
-      // until a real key arrives, which is itself a useful thing to watch.
-      apiKey: const String.fromEnvironment(
-        'SQUAWK_API_KEY',
-        defaultValue: 'sqk_example_placeholder',
-      ),
-      // Point the demo at a Worker other than production, for trying
-      // ingest changes against a real device before they are deployed:
-      //   flutter run --dart-define=SQUAWK_ENDPOINT=https://…/v1/squawks
-      // Empty means the published default. Nobody's own endpoint belongs
-      // in this repo, so it only ever arrives at run time.
-      //
-      // ignore: invalid_use_of_visible_for_testing_member
-      endpoint: _endpointOverride,
-      options: const SquawkOptions(
-        // On so the demo can be triggered without shaking, e.g. on a
-        // simulator or while the phone is tethered.
-        feedbackButton: true,
-      ),
+      // Create a project at https://app.squawksdk.com and paste the key
+      // it issues. Keys are publishable — shipping one in a test build
+      // is the intended use.
+      apiKey: 'sqk_your_project_key',
       child: const DemoApp(),
     ),
   );
@@ -68,18 +34,17 @@ class DemoHome extends StatefulWidget {
 }
 
 class _DemoHomeState extends State<DemoHome> {
-  bool _loggedIn = false;
+  bool _signedIn = false;
 
-  void _toggleLogin() {
-    setState(() => _loggedIn = !_loggedIn);
+  void _toggleSignIn() {
+    setState(() => _signedIn = !_signedIn);
 
-    // Ordinary app logging — this is what ends up on a report.
-    debugPrint(_loggedIn ? 'user signed in' : 'user signed out');
+    // Ordinary app logging — recent lines ride along on every report.
+    debugPrint(_signedIn ? 'user signed in' : 'user signed out');
 
-    if (_loggedIn) {
+    if (_signedIn) {
       Squawk.setUser(id: 'u_42', email: 'jo@client.com');
       Squawk.setMetadata('plan', 'trial');
-      Squawk.setMetadata('screen', 'demo');
     } else {
       Squawk.clearUser();
     }
@@ -91,6 +56,8 @@ class _DemoHomeState extends State<DemoHome> {
       appBar: AppBar(
         title: const Text('Squawk demo'),
         actions: [
+          // Squawk.show() opens the same sheet a shake does — wire it to
+          // a menu item or a debug-only button if shaking is not enough.
           IconButton(
             icon: const Icon(Icons.bug_report),
             onPressed: Squawk.show,
@@ -101,20 +68,20 @@ class _DemoHomeState extends State<DemoHome> {
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
-            'Shake the phone, tap the floating button, or use the toolbar '
-            'icon. Each opens the same report sheet.',
+            'Shake the phone or tap the toolbar icon. Both open the report '
+            'sheet: annotate the screenshot, describe the problem, send.',
           ),
           const SizedBox(height: 24),
           Card(
             child: SwitchListTile(
               title: const Text('Signed in'),
               subtitle: Text(
-                _loggedIn
+                _signedIn
                     ? 'Reports carry u_42, jo@client.com, plan=trial'
                     : 'Reports carry no user context',
               ),
-              value: _loggedIn,
-              onChanged: (_) => _toggleLogin(),
+              value: _signedIn,
+              onChanged: (_) => _toggleSignIn(),
             ),
           ),
           const SizedBox(height: 16),
@@ -137,136 +104,11 @@ class _DemoHomeState extends State<DemoHome> {
           ),
           const SizedBox(height: 24),
           const Text(
-            'Annotate this text when the sheet opens — it is here to give the '
-            'screenshot something recognisable to draw on.',
+            'Annotate this text when the sheet opens — it is here to give '
+            'the screenshot something recognisable to draw on.',
           ),
-          const Divider(height: 40),
-          const _SpoolCard(),
-          const Divider(height: 40),
-          const _LastReportCard(),
         ],
       ),
-    );
-  }
-}
-
-/// Shows whatever the SDK last captured, from any trigger.
-///
-/// Check the screenshot for the floating button: it sits inside the capture
-/// boundary, so if it ever appears here, it is appearing in real reports too.
-class _LastReportCard extends StatelessWidget {
-  const _LastReportCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<SquawkReport?>(
-      valueListenable: SquawkController.instance.lastReport,
-      builder: (context, report, _) {
-        if (report == null) {
-          return const Text('No report captured yet.');
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Last report', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text('text: ${report.text ?? '(none)'}'),
-            Text('user: ${report.userId ?? '(none)'} '
-                '${report.userEmail ?? ''}'),
-            Text('reporter email: ${report.reporterEmail ?? '(none)'}'),
-            Text('metadata: ${report.metadata}'),
-            Text('screenshot: ${report.screenshot.lengthInBytes ~/ 1024} KB'),
-            Text('device: ${report.device?.deviceModel ?? '(unknown)'} '
-                '• ${report.device?.osName ?? '?'} '
-                '${report.device?.osVersion ?? ''}'),
-            Text('app: ${report.device?.appVersion ?? '(unknown)'} '
-                '• ${report.device?.buildMode.name ?? '?'} build'),
-            const SizedBox(height: 8),
-            Text(
-              'logs: showing last ${report.logs.length.clamp(0, 20)} '
-              'of ${report.logs.length} captured, newest last',
-            ),
-            for (final entry in report.logs.reversed.take(20).toList().reversed)
-              Text(
-                '${entry.isError ? '⚠ ' : ''}${entry.message}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11,
-                  color: entry.isError ? Colors.red : null,
-                ),
-              ),
-            const SizedBox(height: 8),
-            Image.memory(report.screenshot, height: 360),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// Shows what is still waiting to be delivered.
-///
-/// Without this a device run cannot tell a successful send from the SDK
-/// quietly doing nothing — everything after submit happens in the background.
-class _SpoolCard extends StatefulWidget {
-  const _SpoolCard();
-
-  @override
-  State<_SpoolCard> createState() => _SpoolCardState();
-}
-
-class _SpoolCardState extends State<_SpoolCard> {
-  Timer? _poll;
-  int _waiting = 0;
-  String _lastChecked = '—';
-
-  @override
-  void initState() {
-    super.initState();
-    _poll = Timer.periodic(const Duration(seconds: 1), (_) => _refresh());
-    _refresh();
-  }
-
-  @override
-  void dispose() {
-    _poll?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _refresh() async {
-    final Spool? spool = SquawkController.instance.spool;
-    if (spool == null) return;
-
-    final waiting = await spool.pendingCount;
-    if (!mounted) return;
-    setState(() {
-      _waiting = waiting;
-      _lastChecked = DateTime.now().toIso8601String().substring(11, 19);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Delivery', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Text(
-          _waiting == 0
-              ? 'Nothing waiting — everything captured has been sent or dropped.'
-              : '$_waiting report(s) still queued, retrying in the background.',
-        ),
-        Text('checked at $_lastChecked', style: const TextStyle(fontSize: 11)),
-        const SizedBox(height: 8),
-        FilledButton.tonal(
-          onPressed: () => SquawkController.instance.spool?.drain(),
-          child: const Text('Try sending now'),
-        ),
-      ],
     );
   }
 }

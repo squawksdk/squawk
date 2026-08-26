@@ -1,17 +1,30 @@
-# squawk_example
+# Squawk example
 
-A new Flutter project.
+The smallest complete integration: wrap the app in `Squawk`, pass a
+project key, and every shake opens the report sheet.
 
-## Getting Started
+## Run it
 
-This project is a starting point for a Flutter application.
+```sh
+flutter run
+```
 
-A few resources to get you started if this is your first Flutter project:
+Create a project at [app.squawksdk.com](https://app.squawksdk.com) and put
+its key in `lib/main.dart` to see reports arrive in your inbox. Without a
+real key the capture flow still works; sending retries in the background
+until a valid key is in place.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## The dev harness
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+`lib/dev_main.dart` is a second entrypoint used to verify the SDK on real
+devices. It reaches into the package's internals to show the upload spool
+and the last captured report, and accepts run-time overrides:
+
+```sh
+flutter run -t lib/dev_main.dart \
+  --dart-define=SQUAWK_API_KEY=sqk_yourkey \
+  --dart-define=SQUAWK_ENDPOINT=https://your-ingest.example/v1/squawks
+```
+
+It exists for working on Squawk itself; `main.dart` is the file to copy
+from.
