@@ -1,3 +1,9 @@
+## 0.1.1
+
+* No behaviour change. Restructured how the capture session's future is
+  returned so pub.dev's stricter analyzer no longer flags it, restoring
+  the static-analysis score.
+
 ## 0.1.0
 
 The first working release.
