@@ -1,0 +1,44 @@
+name: Bug report
+description: Something in Squawk is broken — the SDK, the dashboard, or delivery.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: Shook the phone on the checkout screen; the sheet opened but the screenshot was black.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Wrap the app in Squawk
+        2. Open a screen with a video player
+        3. Shake
+    validations:
+      required: false
+  - type: input
+    id: versions
+    attributes:
+      label: squawk and Flutter versions
+      placeholder: squawk 0.1.1, Flutter 3.44.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS
+      placeholder: Pixel 8, Android 16
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Anything relevant from the console. Strip secrets first.
+      render: shell
+    validations:
+      required: false
