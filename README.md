@@ -105,6 +105,35 @@ Squawk(
 Pass only `theme` and it is used whatever the device is set to — which is
 what you want if your app pins one `themeMode`.
 
+### If your theme is built by a widget
+
+Some theming setups only work once a widget above them has run.
+`flutter_screenutil` is the common one: a theme that sizes text with `.sp`
+reads values that `ScreenUtilInit` sets up, so building that theme before
+`ScreenUtilInit` throws `LateInitializationError` and the app opens to a
+blank screen.
+
+`Squawk` does not have to be at the root. It only has to sit above
+`MaterialApp`, so put it below whatever your theme depends on:
+
+```dart
+void main() {
+  runApp(
+    ScreenUtilInit(
+      designSize: const Size(393, 852),
+      builder: (context, child) => Squawk(
+        apiKey: 'sqk_your_project_key',
+        options: SquawkOptions(theme: lightTheme),
+        child: const MyApp(),
+      ),
+    ),
+  );
+}
+```
+
+The same applies to any theme that reads from an `InheritedWidget`. If you
+are not theming Squawk, none of this matters and the root is fine.
+
 ## Options
 
 Every option has a default that suits most apps; passing no options at all

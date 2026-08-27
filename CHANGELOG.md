@@ -1,3 +1,12 @@
+## 0.1.2
+
+* Documentation only. The theming section now covers themes that a widget
+  above them builds, such as one sized with `flutter_screenutil`: put
+  `Squawk` below that widget rather than at the root. Wrapping at the root
+  with such a theme threw `LateInitializationError` and opened the app to
+  a blank screen, and the error named the theming package rather than
+  Squawk.
+
 ## 0.1.1
 
 * No behaviour change. Restructured how the capture session's future is
