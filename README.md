@@ -141,6 +141,17 @@ into a report is under your control:
 - Cover feedback reports in your app's privacy policy if you ship Squawk
   to end users rather than testers.
 
+## Roadmap and feedback
+
+Squawk is built in the open. Bugs and feature requests — for the SDK,
+the dashboard, or delivery — live in
+[GitHub issues](https://github.com/squawksdk/squawk/issues); their labels
+(`considering`, `planned`, `in progress`, `shipped`) are the roadmap.
+Questions and half-formed ideas go to
+[Discussions](https://github.com/squawksdk/squawk/discussions), and what
+already shipped is on the
+[changelog](https://squawksdk.com/changelog).
+
 ## License
 
 [Apache-2.0](LICENSE). The SDK is open source; the hosted inbox that

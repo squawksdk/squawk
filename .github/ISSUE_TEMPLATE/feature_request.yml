@@ -1,0 +1,30 @@
+name: Feature request
+description: Something Squawk should do — SDK, dashboard, or integrations.
+labels: ["feature request"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Squawk makes hard or impossible today?
+      placeholder: My testers report bugs from tablets, and the report sheet wastes most of the screen there.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: What would good look like
+      description: Sketch the behaviour you want. API shapes welcome, not required.
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does this live?
+      options:
+        - The Flutter SDK
+        - The dashboard
+        - Delivery and integrations
+        - Somewhere else / not sure
+    validations:
+      required: false

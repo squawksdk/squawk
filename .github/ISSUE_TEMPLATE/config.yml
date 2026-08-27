@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea to talk through
+    url: https://github.com/squawksdk/squawk/discussions
+    about: Not sure it's a bug or a concrete request yet? Start a discussion.
+  - name: Security issue
+    url: mailto:hello@squawksdk.com
+    about: Please report security problems privately by email, never in a public issue.
