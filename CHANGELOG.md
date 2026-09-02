@@ -1,3 +1,24 @@
+## 0.1.3
+
+* Documentation only. The README is rewritten so a reader can ship Squawk
+  correctly without asking anyone:
+  * A new section covers keeping Squawk out of the build the public gets.
+    Separate builds use a `--dart-define` and skip the wrapper when the
+    key is empty. A TestFlight build promoted to the App Store can decide
+    at runtime with `package_info_plus`, since Apple re-signs TestFlight
+    builds with a sandbox receipt. Android has no such signal, so it gets
+    a separate production build. `kReleaseMode` is called out as the
+    wrong tool: TestFlight and Play testing builds are release builds.
+  * The quick start and the published example now read the key from a
+    `--dart-define` rather than hardcoding it.
+  * The limits are stated: 100 log lines, a spool of 50 reports for
+    7 days, and the retry schedule.
+  * Retention now matches the privacy policy: reports on the free tier
+    are deleted automatically 30 days after they arrive.
+  * Slack delivery is described as it works now: posted as the app, so
+    a resolve or delete in the inbox reaches the message, and a report
+    can be resolved from Slack.
+
 ## 0.1.2
 
 * Documentation only. The theming section now covers themes that a widget
