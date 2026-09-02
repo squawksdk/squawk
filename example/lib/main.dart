@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:squawk/squawk.dart';
 
+// Create a project at https://app.squawksdk.com and pass the key it
+// issues at build time, so it never lives in your repo:
+//   flutter run --dart-define=SQUAWK_API_KEY=sqk_yourkey
+// Keys are publishable. Shipping one in a test build is the intended use.
+const squawkApiKey = String.fromEnvironment('SQUAWK_API_KEY');
+
 void main() {
+  const app = DemoApp();
   runApp(
-    Squawk(
-      // Create a project at https://app.squawksdk.com and paste the key
-      // it issues. Keys are publishable — shipping one in a test build
-      // is the intended use.
-      apiKey: 'sqk_your_project_key',
-      child: const DemoApp(),
-    ),
+    // No key means the build ships without Squawk attached at all, which
+    // is how you keep it out of the build the public gets.
+    squawkApiKey.isEmpty
+        ? app
+        : Squawk(apiKey: squawkApiKey, child: app),
   );
 }
 
