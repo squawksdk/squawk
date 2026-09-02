@@ -31,6 +31,14 @@ class SquawkController {
   /// Set while a [Squawk] widget is mounted. Null otherwise.
   _MountedHost? _host;
 
+  /// Set while a [Squawk] widget is mounted with `enabled: false`.
+  ///
+  /// Distinct from "nothing mounted": that is a misconfiguration and
+  /// [show] reports it, whereas this is the app's own choice and [show]
+  /// stays silent. A production build with a "Report a bug" menu item
+  /// must not log an error to crash reporting on every tap.
+  bool disabled = false;
+
   /// Present only while log capture is enabled — `captureLogs: false` must
   /// leave nothing buffered in memory, not merely withhold it from reports.
   LogBuffer? _logs;
@@ -111,6 +119,7 @@ class SquawkController {
       'exactly once, at the root.',
     );
     _host = _MountedHost(context, capture);
+    disabled = false;
   }
 
   void unmount(BuildContext context) {
@@ -140,9 +149,11 @@ class SquawkController {
   /// without this guard it would stack sheets and send two reports for one bug.
   ///
   /// Reports a Flutter error and returns null when no widget is mounted — a
-  /// misconfigured SDK must not take the host app down.
+  /// misconfigured SDK must not take the host app down. Returns null with
+  /// no error when the widget is mounted with `enabled: false`.
   Future<SquawkReport?> show() async {
     if (_isCapturing.value) return null;
+    if (disabled) return null;
 
     final host = _host;
     if (host == null) {
@@ -216,6 +227,7 @@ class SquawkController {
   @visibleForTesting
   void reset() {
     _host = null;
+    disabled = false;
     _isCapturing.value = false;
     _lastReport.value = null;
     spool = null;

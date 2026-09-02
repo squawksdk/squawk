@@ -8,13 +8,14 @@ import 'package:squawk/squawk.dart';
 const squawkApiKey = String.fromEnvironment('SQUAWK_API_KEY');
 
 void main() {
-  const app = DemoApp();
   runApp(
-    // No key means the build ships without Squawk attached at all, which
-    // is how you keep it out of the build the public gets.
-    squawkApiKey.isEmpty
-        ? app
-        : Squawk(apiKey: squawkApiKey, child: app),
+    Squawk(
+      apiKey: squawkApiKey,
+      // No key switches Squawk off entirely, which is how you keep it out
+      // of the build the public gets.
+      options: SquawkOptions(enabled: squawkApiKey.isNotEmpty),
+      child: const DemoApp(),
+    ),
   );
 }
 

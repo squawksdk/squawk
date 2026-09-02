@@ -61,7 +61,8 @@ class Squawk extends StatelessWidget {
   ///
   /// Safe to call from anywhere. If no [Squawk] widget is mounted this
   /// reports a Flutter error and returns without throwing, so a
-  /// misconfigured SDK cannot take the host app down.
+  /// misconfigured SDK cannot take the host app down. If the widget is
+  /// mounted with [SquawkOptions.enabled] false it returns silently.
   static Future<void> show() => SquawkController.instance.show();
 
   /// Attaches an identity to every subsequent report.
@@ -79,6 +80,11 @@ class Squawk extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Nothing below this line may run when disabled: the host is what
+    // starts log capture and delivery, and delivery is what would upload a
+    // report left in the spool by an earlier, enabled build.
+    if (!options.enabled) return _SquawkDisabled(child: child);
+
     final capture = _capture ??
         SquawkCapture(
           askReporterEmail: options.askReporterEmail,
@@ -95,6 +101,38 @@ class Squawk extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What [Squawk] becomes with `enabled: false`: the child, and a note to the
+/// controller that this is deliberate.
+///
+/// The note is what keeps [Squawk.show] quiet. Without it a disabled build
+/// looks exactly like a build that forgot to mount Squawk, and the error
+/// meant for that case would fire on every tap of a "Report a bug" item.
+class _SquawkDisabled extends StatefulWidget {
+  const _SquawkDisabled({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SquawkDisabled> createState() => _SquawkDisabledState();
+}
+
+class _SquawkDisabledState extends State<_SquawkDisabled> {
+  @override
+  void initState() {
+    super.initState();
+    SquawkController.instance.disabled = true;
+  }
+
+  @override
+  void dispose() {
+    SquawkController.instance.disabled = false;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Registers the mounted context with the controller.
