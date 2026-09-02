@@ -123,6 +123,12 @@ run from Xcode on a device also carries a sandbox receipt, so this check
 means "not from the App Store" rather than "TestFlight specifically". For
 this purpose that is what you want.
 
+This adds nothing to your app. Squawk already depends on
+`package_info_plus` to read your version and build number, so every app
+with Squawk has it. Add it to your own `pubspec.yaml` only so you can
+import it directly, which the `depend_on_referenced_packages` lint asks
+for.
+
 **Android has no equivalent.** Play's internal, closed and open testing
 tracks install through the same installer as production, and nothing on
 the device says which track a build came from. Ship a separate production
