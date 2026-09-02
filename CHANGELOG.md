@@ -1,4 +1,4 @@
-## 0.1.4
+## 0.1.2
 
 * `SquawkOptions.enabled`, default `true`. Set it to `false` and `Squawk`
   renders your app and nothing else: no shake listener, no floating
@@ -9,18 +9,15 @@
 
   It is a plain runtime value, so it can come from a `--dart-define` or
   from something only known once the app is running, such as whether the
-  install came from TestFlight. The README's "Only on test builds"
-  section now leads with it. Passing an empty key and skipping the wrapper
-  still works as before.
+  install came from TestFlight. Passing an empty key and skipping the
+  wrapper still works as before.
 
-## 0.1.3
-
-* Documentation only. The README is rewritten so a reader can ship Squawk
-  correctly without asking anyone:
-  * A new section covers keeping Squawk out of the build the public gets.
-    Separate builds use a `--dart-define` and skip the wrapper when the
-    key is empty. A TestFlight build promoted to the App Store can decide
-    at runtime with `package_info_plus`, since Apple re-signs TestFlight
+* The README is rewritten so a reader can ship Squawk correctly without
+  asking anyone:
+  * A new section, "Only on test builds", covers keeping Squawk out of
+    the build the public gets. Separate builds use a `--dart-define` and
+    `enabled`. A TestFlight build promoted to the App Store can decide at
+    runtime with `package_info_plus`, since Apple re-signs TestFlight
     builds with a sandbox receipt. Android has no such signal, so it gets
     a separate production build. `kReleaseMode` is called out as the
     wrong tool: TestFlight and Play testing builds are release builds.
@@ -33,15 +30,11 @@
   * Slack delivery is described as it works now: posted as the app, so
     a resolve or delete in the inbox reaches the message, and a report
     can be resolved from Slack.
-
-## 0.1.2
-
-* Documentation only. The theming section now covers themes that a widget
-  above them builds, such as one sized with `flutter_screenutil`: put
-  `Squawk` below that widget rather than at the root. Wrapping at the root
-  with such a theme threw `LateInitializationError` and opened the app to
-  a blank screen, and the error named the theming package rather than
-  Squawk.
+  * The theming section covers themes that a widget above them builds,
+    such as one sized with `flutter_screenutil`: put `Squawk` below that
+    widget rather than at the root. Wrapping at the root with such a
+    theme threw `LateInitializationError` and opened the app to a blank
+    screen.
 
 ## 0.1.1
 
