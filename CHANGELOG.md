@@ -1,3 +1,18 @@
+## 0.1.4
+
+* `SquawkOptions.enabled`, default `true`. Set it to `false` and `Squawk`
+  renders your app and nothing else: no shake listener, no floating
+  button, no log capture, and nothing left in the spool by an earlier
+  build is uploaded. `Squawk.show()` returns silently rather than
+  reporting the "nothing mounted" error, since a disabled build is a
+  choice and not a mistake.
+
+  It is a plain runtime value, so it can come from a `--dart-define` or
+  from something only known once the app is running, such as whether the
+  install came from TestFlight. The README's "Only on test builds"
+  section now leads with it. Passing an empty key and skipping the wrapper
+  still works as before.
+
 ## 0.1.3
 
 * Documentation only. The README is rewritten so a reader can ship Squawk

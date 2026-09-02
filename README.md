@@ -65,21 +65,28 @@ public gets. How you do that depends on whether those are different builds.
 
 ### Different builds for testers and for the store
 
-Pass the key only when building for testers. With no key, do not wrap the
-app at all:
+Pass the key only when building for testers, and switch Squawk off when
+it is missing:
 
 ```dart
 const squawkApiKey = String.fromEnvironment('SQUAWK_API_KEY');
 
 void main() {
-  const app = MyApp();
   runApp(
-    squawkApiKey.isEmpty
-        ? app
-        : Squawk(apiKey: squawkApiKey, child: app),
+    Squawk(
+      apiKey: squawkApiKey,
+      options: SquawkOptions(enabled: squawkApiKey.isNotEmpty),
+      child: const MyApp(),
+    ),
   );
 }
 ```
+
+With `enabled: false`, `Squawk` renders your app and nothing else. No
+shake listener, no floating button, no log capture, and nothing left in
+the spool by an earlier build is uploaded. `Squawk.show()` returns without
+opening anything and without reporting an error, so a "Report a bug" menu
+item is safe to leave in place.
 
 ```sh
 # Testers
@@ -110,12 +117,22 @@ import 'package:package_info_plus/package_info_plus.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final info = await PackageInfo.fromPlatform();
-  final testBuild = info.installerStore == 'com.apple.testflight';
 
-  const app = MyApp();
-  runApp(testBuild ? Squawk(apiKey: squawkApiKey, child: app) : app);
+  runApp(
+    Squawk(
+      apiKey: squawkApiKey,
+      options: SquawkOptions(
+        enabled: info.installerStore == 'com.apple.testflight',
+      ),
+      child: const MyApp(),
+    ),
+  );
 }
 ```
+
+`enabled` is an ordinary runtime value, so it can wait for an answer like
+this one. It is read when `Squawk` is built, not on a timer, so it is not
+a remote kill switch for a build already in people's hands.
 
 `installerStore` is `com.apple.testflight` for TestFlight, `com.apple` for
 the App Store, and `com.apple.simulator` on the simulator. A debug build
@@ -295,6 +312,7 @@ all is the expected case.
 
 | Option              | Default  | What it does                                    |
 | ------------------- | -------- | ----------------------------------------------- |
+| `enabled`           | `true`   | Whether Squawk does anything at all             |
 | `shakeToReport`     | `true`   | Shaking opens the report sheet                  |
 | `shakeSensitivity`  | `medium` | How hard the shake must be (Android only)       |
 | `feedbackButton`    | `false`  | A floating button that opens the sheet          |

@@ -26,6 +26,7 @@ enum ShakeSensitivity {
 /// all is the expected case.
 class SquawkOptions {
   const SquawkOptions({
+    this.enabled = true,
     this.shakeToReport = true,
     this.shakeSensitivity = ShakeSensitivity.medium,
     this.feedbackButton = false,
@@ -34,6 +35,19 @@ class SquawkOptions {
     this.theme,
     this.darkTheme,
   });
+
+  /// Whether Squawk does anything at all.
+  ///
+  /// When false, [Squawk] renders its child and nothing else: no shake
+  /// listener, no floating button, no log capture, and no upload of
+  /// anything a previous run left in the spool. [Squawk.show] returns
+  /// without opening a sheet and without reporting an error.
+  ///
+  /// It is a plain runtime value, so it can come from a build-time define
+  /// or from something only known once the app is running, such as whether
+  /// this install came from TestFlight. It is not a remote kill switch:
+  /// a build reads it once, when [Squawk] is built.
+  final bool enabled;
 
   /// Whether shaking the device opens the report sheet.
   final bool shakeToReport;

@@ -9,6 +9,7 @@ void main() {
   test('defaults match the documented contract', () {
     const options = SquawkOptions();
 
+    expect(options.enabled, isTrue);
     expect(options.shakeToReport, isTrue);
     expect(options.feedbackButton, isFalse);
     expect(options.captureLogs, isTrue);
