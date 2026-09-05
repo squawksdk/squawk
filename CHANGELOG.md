@@ -10,9 +10,9 @@
 * Two fingers pinch to zoom in, up to four times, and drag to pan. A Fit
   button brings the whole picture back. A second finger landing mid-stroke
   cancels that stroke instead of leaving a dot.
-* The keyboard pushes the sheet and never the drawing. Back, the Drawing
-  button, or dragging the sheet down returns to the drawing with the
-  typed text kept.
+* The keyboard pushes the sheet and never the drawing. Tapping the
+  drawing, dragging the sheet down, or the Android back button returns
+  to it with the typed text kept.
 * Nothing changes in what is sent: drawings were always stored in
   screenshot pixels and still are.
 

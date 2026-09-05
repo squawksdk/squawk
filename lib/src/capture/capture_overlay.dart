@@ -49,7 +49,7 @@ class CaptureOverlay extends StatefulWidget {
   static const Key closeButtonKey = Key('squawk_close_button');
   static const Key undoButtonKey = Key('squawk_undo_button');
   static const Key nextButtonKey = Key('squawk_next_button');
-  static const Key backButtonKey = Key('squawk_back_button');
+  static const Key sheetHandleKey = Key('squawk_sheet_handle');
   static const Key penToolKey = Key('squawk_pen_tool');
   static const Key arrowToolKey = Key('squawk_arrow_tool');
   static const Key textToolKey = Key('squawk_text_tool');
@@ -556,21 +556,24 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     );
   }
 
-  /// The grab bar and the way back. Dragging down closes the sheet, and so
-  /// does the button beside the bar for anyone who would rather tap.
+  /// The grab bar: the one cue that the sheet moves. Dragging it down goes
+  /// back to the drawing, as does tapping the drawing showing above it.
   Widget _sheetHandle(ThemeData theme) {
     return GestureDetector(
+      key: CaptureOverlay.sheetHandleKey,
       behavior: HitTestBehavior.opaque,
       onVerticalDragEnd: (details) {
         if ((details.primaryVelocity ?? 0) > 200) _showMarkup();
       },
-      child: SizedBox(
-        height: 40,
-        width: double.infinity,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
+      child: Semantics(
+        button: true,
+        label: 'Back to the drawing',
+        onTap: _showMarkup,
+        child: SizedBox(
+          height: 28,
+          width: double.infinity,
+          child: Center(
+            child: Container(
               width: 36,
               height: 4,
               decoration: BoxDecoration(
@@ -578,20 +581,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            Positioned(
-              left: 4,
-              child: TextButton.icon(
-                key: CaptureOverlay.backButtonKey,
-                onPressed: _submitting ? null : _showMarkup,
-                icon: const Icon(Icons.chevron_left, size: 18),
-                label: const Text('Drawing'),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  foregroundColor: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

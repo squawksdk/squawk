@@ -209,8 +209,8 @@ Two steps, so a finger always has the whole screen to aim at.
    leaving a mark. Undo takes back the last drawing.
 2. **Describe.** Next slides a sheet up over the drawing for the
    description, the optional email and Send. The keyboard pushes the
-   sheet, never the picture. Drag the sheet down, tap Drawing, or press
-   back to return to the drawing with everything kept.
+   sheet, never the picture. Tap the drawing, drag the sheet down, or
+   press back to return to it with everything kept.
 
 Drawings are stored in screenshot pixels, so what is sent is exactly what
 was drawn, whatever the zoom. Close asks before discarding a drawing or

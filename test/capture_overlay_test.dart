@@ -393,7 +393,7 @@ void main() {
         'almost done writing this up',
       );
       // Back to the drawing keeps the words; close from there has to ask.
-      await tester.tap(find.byKey(CaptureOverlay.backButtonKey));
+      await tester.tapAt(tester.getTopLeft(find.byType(AnnotationCanvas)) + const Offset(20, 20));
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(CaptureOverlay.closeButtonKey));
@@ -427,7 +427,8 @@ void main() {
         find.byKey(SquawkFeedbackForm.textKey),
         'the total is wrong',
       );
-      await tester.tap(find.byKey(CaptureOverlay.backButtonKey));
+      // A flick down on the handle is the way back.
+      await tester.fling(find.byKey(CaptureOverlay.sheetHandleKey), const Offset(0, 80), 800);
       await tester.pumpAndSettle();
       expect(find.byKey(SquawkFeedbackForm.textKey), findsNothing);
 
