@@ -2,6 +2,8 @@
 
 [![pub package](https://img.shields.io/pub/v/squawk.svg)](https://pub.dev/packages/squawk)
 
+![A tester shakes the phone, circles the wrong total, writes a line and sends the report](https://raw.githubusercontent.com/squawksdk/squawk/main/docs/shake-to-inbox.gif)
+
 Your testers shake their phone. The annotated screenshot, recent logs and
 device info land in your inbox. One widget, no native setup.
 
