@@ -53,6 +53,8 @@ void main() {
     required bool email,
   }) async {
     expect(tester.takeException(), isNull, reason: 'nothing may overflow');
+    await openDetails(tester);
+    expect(tester.takeException(), isNull, reason: 'nor may the sheet');
 
     expect(find.byKey(SquawkFeedbackForm.textKey), findsOneWidget);
     expect(find.byKey(SquawkFeedbackForm.submitKey), findsOneWidget);

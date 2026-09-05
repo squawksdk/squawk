@@ -1,3 +1,24 @@
+## 0.1.3
+
+* The report sheet is two steps. First the screenshot fills the screen at
+  its real size, with only a slim bar of tools at each end, so a finger
+  has the whole screen to aim at. Then Next slides the form up over the
+  drawing for the description and the email. Before, the form sat under
+  the screenshot and took what height it needed, which left the picture
+  at about half size and shrank it to a thumbnail when the keyboard came
+  up.
+* Two fingers pinch to zoom in, up to four times, and drag to pan. A Fit
+  button brings the whole picture back. A second finger landing mid-stroke
+  cancels that stroke instead of leaving a dot.
+* The keyboard pushes the sheet and never the drawing. The sheet follows
+  a drag from its grab bar and goes past a third of the way down or on a
+  flick. Tapping the drawing or the Android back button returns to the
+  drawing too, with the typed text kept.
+* The example's dev harness has a System / Light / Dark switch, so the
+  sheet can be checked against every theme mode.
+* Nothing changes in what is sent: drawings were always stored in
+  screenshot pixels and still are.
+
 ## 0.1.2
 
 * `SquawkOptions.enabled`, default `true`. Set it to `false` and `Squawk`

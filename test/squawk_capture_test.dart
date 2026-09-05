@@ -31,13 +31,13 @@ void main() {
   testWidgets('show() opens the capture screen over the host app',
       (tester) async {
     await tester.pumpWidget(hostApp());
-    expect(find.text('Send report'), findsNothing);
+    expect(find.byKey(CaptureOverlay.nextButtonKey), findsNothing);
 
     unawaited(SquawkController.instance.show());
     await tester.pumpAndSettle();
 
-    expect(find.text('What went wrong?'), findsOneWidget);
-    expect(find.text('Send report'), findsOneWidget);
+    expect(find.byKey(CaptureOverlay.nextButtonKey), findsOneWidget);
+    expect(find.byType(AnnotationCanvas), findsOneWidget);
   });
 
   // The device-found bug that started SQUAW-27's predecessor: the old sheet
@@ -64,7 +64,7 @@ void main() {
 
     unawaited(SquawkController.instance.show());
     await tester.pumpAndSettle();
-    expect(find.text('Send report'), findsOneWidget,
+    expect(find.byKey(CaptureOverlay.nextButtonKey), findsOneWidget,
         reason: 'the trigger has to work a second time');
   });
 
@@ -75,6 +75,8 @@ void main() {
     SquawkReport? report;
     unawaited(SquawkController.instance.show().then((r) => report = r));
     await tester.pumpAndSettle();
+
+    await openDetails(tester);
 
     await tester.enterText(
       find.byKey(SquawkFeedbackForm.textKey),
@@ -124,6 +126,8 @@ void main() {
       reason: 'the drag must have produced a stroke',
     );
 
+    await openDetails(tester);
+
     await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));
     await waitReal(tester, () => report != null);
     await tester.pumpAndSettle();
@@ -144,6 +148,8 @@ void main() {
     SquawkReport? report;
     unawaited(SquawkController.instance.show().then((r) => report = r));
     await tester.pumpAndSettle();
+
+    await openDetails(tester);
 
     await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));
     await waitReal(tester, () => report != null);
@@ -176,6 +182,8 @@ void main() {
     SquawkReport? report;
     unawaited(SquawkController.instance.show().then((r) => report = r));
     await tester.pumpAndSettle();
+
+    await openDetails(tester);
 
     await tester.tap(find.byKey(SquawkFeedbackForm.submitKey));
     await waitReal(tester, () => report != null);

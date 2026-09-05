@@ -34,5 +34,9 @@ flutter run -t lib/dev_main.dart \
   --dart-define=SQUAWK_ENDPOINT=https://your-ingest.example/v1/squawks
 ```
 
+The harness has a System / Light / Dark switch above `Squawk`, so the
+report sheet can be checked against each theme mode: one theme handed
+over when pinned, both when following the device.
+
 It exists for working on Squawk itself. `main.dart` is the file to copy
 from.

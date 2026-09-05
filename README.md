@@ -197,6 +197,27 @@ Three levels: `light`, `medium` (the default) and `firm`. This is Android
 only. iOS uses the system shake gesture, which Apple does not make
 tunable.
 
+## The report sheet
+
+Two steps, so a finger always has the whole screen to aim at.
+
+1. **Draw.** The screenshot fills the screen at its real size, between a
+   slim bar of tools at each end. One finger draws with the pen or the
+   arrow, or places a text label. Two fingers pinch to zoom in, up to four
+   times, and drag to pan; a Fit button brings the whole picture back. A
+   second finger landing mid-stroke cancels that stroke rather than
+   leaving a mark. Undo takes back the last drawing.
+2. **Describe.** Next slides a sheet up over the drawing for the
+   description, the optional email and Send. The keyboard pushes the
+   sheet, never the picture. The sheet follows a drag from its grab bar:
+   let go past a third of the way down, or flick it, and it goes; let go
+   sooner and it settles back. Tapping the drawing or pressing back
+   returns to it too, with everything kept.
+
+Drawings are stored in screenshot pixels, so what is sent is exactly what
+was drawn, whatever the zoom. Close asks before discarding a drawing or
+typed text.
+
 ## What a report contains
 
 **The screenshot**, as the tester annotated it. Pen strokes, arrows and

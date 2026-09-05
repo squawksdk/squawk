@@ -59,4 +59,58 @@ void main() {
           const Offset(200, 100));
     });
   });
+
+  group('zoomedDisplayRect', () {
+    const image = Size(1000, 2000);
+    const viewport = Size(400, 800);
+
+    test('at zoom 1 with no pan it is the fitted rectangle', () {
+      expect(
+        zoomedDisplayRect(image, viewport, 1, Offset.zero),
+        displayRectFor(image, viewport),
+      );
+    });
+
+    test('zoom grows the picture about the viewport centre', () {
+      final rect = zoomedDisplayRect(image, viewport, 2, Offset.zero);
+      expect(rect.size, const Size(800, 1600));
+      expect(rect.center, const Offset(200, 400));
+    });
+
+    test('pan moves the picture by that much', () {
+      final rect = zoomedDisplayRect(image, viewport, 2, const Offset(-50, 30));
+      expect(rect.center, const Offset(150, 430));
+    });
+  });
+
+  group('clampPan', () {
+    const image = Size(1000, 2000);
+    const viewport = Size(400, 800);
+
+    test('at zoom 1 every pan is zero', () {
+      expect(clampPan(image, viewport, 1, const Offset(90, -90)), Offset.zero);
+    });
+
+    test('a zoomed picture may not open a letterbox', () {
+      // Twice the size: 800x1600 in a 400x800 viewport, so 200 and 400 of
+      // slack each way.
+      expect(
+        clampPan(image, viewport, 2, const Offset(500, -900)),
+        const Offset(200, -400),
+      );
+      expect(
+        clampPan(image, viewport, 2, const Offset(-10, 10)),
+        const Offset(-10, 10),
+      );
+    });
+
+    test('an axis the picture does not fill stays centred', () {
+      // A wide viewport: the fitted picture is 400 wide in 1000, and at
+      // zoom 2 still only 800, so no sideways pan is possible.
+      expect(
+        clampPan(image, const Size(1000, 800), 2, const Offset(300, 100)),
+        const Offset(0, 100),
+      );
+    });
+  });
 }

@@ -509,6 +509,20 @@ class AnnotationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Drops the stroke in progress as if the finger had never landed. For a
+  /// second finger arriving mid-stroke: the reporter is zooming, and the
+  /// half-drawn line was never meant. A move or resize in progress simply
+  /// ends where it is, since undoing it is one tap away.
+  void cancelStroke() {
+    if (_active != null) {
+      _annotations.remove(_active);
+      _active = null;
+    }
+    _moving = null;
+    _resizing = false;
+    notifyListeners();
+  }
+
   void endStroke() {
     // An arrow too short to have a direction marks nothing — dropping it
     // beats leaving a speck the reporter has to undo.

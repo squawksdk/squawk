@@ -26,6 +26,7 @@ void main() {
   Future<void> openSheet(WidgetTester tester) async {
     unawaited(Squawk.show());
     await tester.pumpAndSettle();
+    await openDetails(tester);
   }
 
   Future<void> submit(WidgetTester tester) async {

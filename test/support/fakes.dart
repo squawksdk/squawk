@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/shake_trigger.dart';
+import 'package:squawk/src/capture/capture_overlay.dart';
 import 'package:squawk/src/capture/report_capture.dart';
 import 'package:squawk/src/device_context.dart';
 import 'package:squawk/src/reporter_email_store.dart';
@@ -257,4 +258,11 @@ class FakeUploader implements ReportUploader {
     if (outcome == UploadOutcome.sent) sent.add(report);
     return outcome;
   }
+}
+
+/// Step two of the capture: the form. The screenshot is drawn on first and
+/// described second, so any test that types or sends goes through Next.
+Future<void> openDetails(WidgetTester tester) async {
+  await tester.tap(find.byKey(CaptureOverlay.nextButtonKey));
+  await tester.pumpAndSettle();
 }
