@@ -436,6 +436,42 @@ void main() {
       expect(find.text('the total is wrong'), findsOneWidget);
     });
 
+    testWidgets('the sheet follows a drag and snaps back if it stops short',
+        (tester) async {
+      await openCapture(tester);
+      await openDetails(tester);
+
+      final handle = find.byKey(CaptureOverlay.sheetHandleKey);
+      final before = tester.getTopLeft(handle).dy;
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await gesture.moveBy(const Offset(0, 40));
+      await tester.pump();
+      expect(tester.getTopLeft(handle).dy, greaterThan(before),
+          reason: 'the sheet moves with the finger');
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsOneWidget,
+          reason: 'a short drag settles back');
+      expect(tester.getTopLeft(handle).dy, before);
+    });
+
+    testWidgets('a drag most of the way down lets the sheet go',
+        (tester) async {
+      await openCapture(tester);
+      await openDetails(tester);
+
+      final handle = find.byKey(CaptureOverlay.sheetHandleKey);
+      final sheetHeight = tester.getSize(find.byType(SquawkFeedbackForm)).height;
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await gesture.moveBy(Offset(0, sheetHeight * 0.6));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsNothing);
+    });
+
     testWidgets('the Android back button leaves the form for the drawing',
         (tester) async {
       await openCapture(tester);

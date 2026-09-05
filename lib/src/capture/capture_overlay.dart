@@ -88,6 +88,9 @@ class _CaptureOverlayState extends State<CaptureOverlay>
   late final CurvedAnimation _sheetEased;
 
   _Step _step = _Step.markup;
+
+  /// The sheet's Material, so a drag can be measured against its height.
+  final _sheetKey = GlobalKey();
   bool _submitting = false;
   bool _confirmingDiscard = false;
   bool _leaving = false;
@@ -177,6 +180,27 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     FocusManager.instance.primaryFocus?.unfocus();
     await _sheet.reverse();
     if (mounted) setState(() => _step = _Step.markup);
+  }
+
+  double get _sheetHeight => _sheetKey.currentContext?.size?.height ?? 400;
+
+  /// The sheet follows the finger from the handle, as a fraction of its own
+  /// height, so a slow drag reads as the sheet moving and not as a swipe
+  /// being judged.
+  void _dragSheet(DragUpdateDetails details) {
+    _sheet.value = (_sheet.value - details.primaryDelta! / _sheetHeight)
+        .clamp(0.0, 1.0);
+  }
+
+  /// A flick, or more than a third of the way down, lets the sheet go;
+  /// anything less and it settles back where it was.
+  void _releaseSheet(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity > 300 || (_sheet.value < 0.67 && velocity >= 0)) {
+      _showMarkup();
+    } else {
+      _sheet.forward();
+    }
   }
 
   /// A tap with the text tool: rewording the label it landed on, or writing
@@ -522,6 +546,7 @@ class _CaptureOverlayState extends State<CaptureOverlay>
                             CaptureOverlay._sheetHeadroom,
                       ),
                       child: Material(
+                        key: _sheetKey,
                         color: theme.colorScheme.surface,
                         elevation: 8,
                         borderRadius: const BorderRadius.vertical(
@@ -556,15 +581,15 @@ class _CaptureOverlayState extends State<CaptureOverlay>
     );
   }
 
-  /// The grab bar: the one cue that the sheet moves. Dragging it down goes
-  /// back to the drawing, as does tapping the drawing showing above it.
+  /// The grab bar: the one cue that the sheet moves. It follows a drag and
+  /// lets go past a third of the way down or on a flick; tapping the drawing
+  /// showing above it goes back too.
   Widget _sheetHandle(ThemeData theme) {
     return GestureDetector(
       key: CaptureOverlay.sheetHandleKey,
       behavior: HitTestBehavior.opaque,
-      onVerticalDragEnd: (details) {
-        if ((details.primaryVelocity ?? 0) > 200) _showMarkup();
-      },
+      onVerticalDragUpdate: _dragSheet,
+      onVerticalDragEnd: _releaseSheet,
       child: Semantics(
         button: true,
         label: 'Back to the drawing',
