@@ -53,6 +53,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       await openCapture(tester);
+      await openDetails(tester);
 
       final button = tester.getRect(find.byKey(SquawkFeedbackForm.submitKey));
       expect(
@@ -66,6 +67,7 @@ void main() {
     // own inputs of height. The new layout must always show all of them.
     testWidgets('the form says what a report includes', (tester) async {
       await openCapture(tester);
+      await openDetails(tester);
 
       expect(
         find.textContaining('screenshot, device info'),
@@ -81,11 +83,13 @@ void main() {
       addTearDown(tester.view.reset);
 
       await openCapture(tester);
+      await openDetails(tester);
 
       expect(find.byKey(SquawkFeedbackForm.textKey), findsOneWidget);
       expect(find.byKey(SquawkFeedbackForm.emailKey), findsOneWidget);
       expect(find.byKey(SquawkFeedbackForm.submitKey), findsOneWidget);
-      expect(find.byType(AnnotationCanvas), findsOneWidget);
+      expect(find.byType(AnnotationCanvas), findsOneWidget,
+          reason: 'the drawing stays under the sheet');
     });
 
     // Three tools, four colors and undo have to coexist with the close
@@ -107,6 +111,7 @@ void main() {
         (tester) async {
       tester.view.devicePixelRatio = 1.0;
       await openCapture(tester);
+      await openDetails(tester);
 
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pumpAndSettle();
@@ -125,7 +130,7 @@ void main() {
     testWidgets('the hint stands down after the first stroke', (tester) async {
       await openCapture(tester);
 
-      final hint = find.text(
+      final hint = find.textContaining(
         'Draw on the screenshot to point at the problem',
       );
       expect(hint, findsOneWidget);
@@ -382,10 +387,14 @@ void main() {
     testWidgets('typed text alone is enough to warrant asking',
         (tester) async {
       await openCapture(tester);
+      await openDetails(tester);
       await tester.enterText(
         find.byKey(SquawkFeedbackForm.textKey),
         'almost done writing this up',
       );
+      // Back to the drawing keeps the words; close from there has to ask.
+      await tester.tap(find.byKey(CaptureOverlay.backButtonKey));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(CaptureOverlay.closeButtonKey));
       await tester.pumpAndSettle();
@@ -405,13 +414,95 @@ void main() {
     });
   });
 
+  group('two steps', () {
+    testWidgets('the form waits behind Next, and Back keeps what was typed',
+        (tester) async {
+      await openCapture(tester);
+
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsNothing,
+          reason: 'step one is the drawing alone');
+
+      await openDetails(tester);
+      await tester.enterText(
+        find.byKey(SquawkFeedbackForm.textKey),
+        'the total is wrong',
+      );
+      await tester.tap(find.byKey(CaptureOverlay.backButtonKey));
+      await tester.pumpAndSettle();
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsNothing);
+
+      await openDetails(tester);
+      expect(find.text('the total is wrong'), findsOneWidget);
+    });
+
+    testWidgets('the Android back button leaves the form for the drawing',
+        (tester) async {
+      await openCapture(tester);
+      await openDetails(tester);
+
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsNothing);
+      expect(find.byType(CaptureOverlay), findsOneWidget,
+          reason: 'back from the form is one step, not the exit');
+    });
+
+    testWidgets('the keyboard never shrinks the drawing', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await openCapture(tester);
+      final before = tester.getSize(find.byType(AnnotationCanvas));
+
+      await openDetails(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(find.byType(AnnotationCanvas)), before);
+    });
+  });
+
+  group('zoom', () {
+    testWidgets('a second finger cancels the stroke and zooms instead',
+        (tester) async {
+      await openCapture(tester);
+      final centre = tester.getCenter(find.byType(AnnotationCanvas));
+
+      final first = await tester.startGesture(centre);
+      await first.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(canvasOf(tester).controller.hasAnnotations, isTrue);
+
+      final second = await tester.startGesture(centre + const Offset(0, 80));
+      await tester.pump();
+      expect(canvasOf(tester).controller.hasAnnotations, isFalse,
+          reason: 'the half-drawn stroke goes when the pinch begins');
+
+      await first.moveBy(const Offset(0, -60));
+      await second.moveBy(const Offset(0, 60));
+      await tester.pump();
+      expect(find.byKey(AnnotationCanvas.resetZoomKey), findsOneWidget,
+          reason: 'zoomed in, so the way back is offered');
+
+      await first.up();
+      await second.up();
+      await tester.pumpAndSettle();
+      expect(canvasOf(tester).controller.hasAnnotations, isFalse,
+          reason: 'lifting after a pinch draws nothing');
+
+      await tester.tap(find.byKey(AnnotationCanvas.resetZoomKey));
+      await tester.pumpAndSettle();
+      expect(find.byKey(AnnotationCanvas.resetZoomKey), findsNothing);
+    });
+  });
+
   testWidgets('a remembered address is offered, but typing wins',
       (tester) async {
     SquawkController.instance.emailStore =
         InMemoryEmailStore(initial: 'jo@client.com');
 
     await openCapture(tester);
-    await tester.pumpAndSettle();
+    await openDetails(tester);
 
     final email = tester.widget<TextField>(
       find.byKey(SquawkFeedbackForm.emailKey),
