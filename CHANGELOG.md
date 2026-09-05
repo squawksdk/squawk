@@ -1,3 +1,10 @@
+## 0.1.4
+
+* The README opens with a recording of the flow: shake, circle the bug,
+  Next, type a line, Send. Nothing in the package changes.
+* The example gains `lib/demo_main.dart`, the order screen from that
+  recording, with a deliberately wrong total to point at.
+
 ## 0.1.3
 
 * The report sheet is two steps. First the screenshot fills the screen at
