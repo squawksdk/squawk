@@ -1,4 +1,4 @@
-## 0.2.0
+## 0.1.3
 
 * The report sheet is two steps. First the screenshot fills the screen at
   its real size, with only a slim bar of tools at each end, so a finger
