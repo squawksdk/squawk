@@ -20,8 +20,42 @@ final Uri? _endpointOverride =
     _endpointFromEnv.isEmpty ? null : Uri.parse(_endpointFromEnv);
 
 void main() {
-  runApp(
-    Squawk(
+  runApp(const HarnessRoot());
+}
+
+/// Owns the theme mode, above [Squawk], so a change re-hands the SDK its
+/// theme: Squawk draws above the MaterialApp and cannot read the app's.
+class HarnessRoot extends StatefulWidget {
+  const HarnessRoot({super.key});
+
+  @override
+  State<HarnessRoot> createState() => _HarnessRootState();
+}
+
+class _HarnessRootState extends State<HarnessRoot> {
+  ThemeMode _mode = ThemeMode.system;
+
+  static final _light = ThemeData(colorSchemeSeed: Colors.indigo);
+  static final _dark = ThemeData(
+    colorSchemeSeed: Colors.indigo,
+    brightness: Brightness.dark,
+  );
+
+  /// Mirrors what the app shows: one theme when pinned, both to follow the
+  /// device, the same way an app would set SquawkOptions for its themeMode.
+  SquawkOptions get _options => switch (_mode) {
+    ThemeMode.system => SquawkOptions(
+      feedbackButton: true,
+      theme: _light,
+      darkTheme: _dark,
+    ),
+    ThemeMode.light => SquawkOptions(feedbackButton: true, theme: _light),
+    ThemeMode.dark => SquawkOptions(feedbackButton: true, theme: _dark),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Squawk(
       // Passed at run time so no real key lives in this open-source repo:
       //   flutter run --dart-define=SQUAWK_API_KEY=sqk_yourkey
       // Without it the SDK still captures and spools; uploads retry as 401s
@@ -38,31 +72,54 @@ void main() {
       //
       // ignore: invalid_use_of_visible_for_testing_member
       endpoint: _endpointOverride,
-      options: const SquawkOptions(
-        // On so the demo can be triggered without shaking, e.g. on a
-        // simulator or while the phone is tethered.
-        feedbackButton: true,
+      // The floating button is on so the demo can be triggered without
+      // shaking, e.g. on a simulator or while the phone is tethered.
+      options: _options,
+      child: HarnessApp(
+        theme: _light,
+        darkTheme: _dark,
+        mode: _mode,
+        onModeChanged: (mode) => setState(() => _mode = mode),
       ),
-      child: const HarnessApp(),
-    ),
-  );
+    );
+  }
 }
 
 class HarnessApp extends StatelessWidget {
-  const HarnessApp({super.key});
+  const HarnessApp({
+    super.key,
+    required this.theme,
+    required this.darkTheme,
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  final ThemeData theme;
+  final ThemeData darkTheme;
+  final ThemeMode mode;
+  final ValueChanged<ThemeMode> onModeChanged;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Squawk dev harness',
-      theme: ThemeData(colorSchemeSeed: Colors.indigo),
-      home: const HarnessHome(),
+      theme: theme,
+      darkTheme: darkTheme,
+      themeMode: mode,
+      home: HarnessHome(mode: mode, onModeChanged: onModeChanged),
     );
   }
 }
 
 class HarnessHome extends StatefulWidget {
-  const HarnessHome({super.key});
+  const HarnessHome({
+    super.key,
+    required this.mode,
+    required this.onModeChanged,
+  });
+
+  final ThemeMode mode;
+  final ValueChanged<ThemeMode> onModeChanged;
 
   @override
   State<HarnessHome> createState() => _HarnessHomeState();
@@ -116,6 +173,39 @@ class _HarnessHomeState extends State<HarnessHome> {
               ),
               value: _loggedIn,
               onChanged: (_) => _toggleLogin(),
+            ),
+          ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Theme'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'The report sheet should match the app in every mode.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                    ],
+                    selected: {widget.mode},
+                    onSelectionChanged: (modes) =>
+                        widget.onModeChanged(modes.single),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),

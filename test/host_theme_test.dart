@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:squawk/squawk.dart';
 import 'package:squawk/src/capture/capture_overlay.dart';
 import 'package:squawk/src/capture/sent_confirmation.dart';
+import 'package:squawk/src/capture/squawk_feedback_form.dart';
 import 'package:squawk/src/feedback_button.dart';
 import 'package:squawk/src/squawk_controller.dart';
 
@@ -79,6 +80,19 @@ void main() {
       expect(sheetTheme(tester).brightness, Brightness.dark);
     });
 
+    testWidgets('the fallback follows the device switching mid-capture',
+        (tester) async {
+      setDevice(Brightness.light);
+      await tester.pumpWidget(app());
+      await openSheet(tester);
+      expect(sheetTheme(tester).brightness, Brightness.light);
+
+      setDevice(Brightness.dark);
+      await tester.pump();
+
+      expect(sheetTheme(tester).brightness, Brightness.dark);
+    });
+
     testWidgets('restyles when the theme changes mid-capture', (tester) async {
       setDevice(Brightness.light);
       await tester.pumpWidget(app(options: SquawkOptions(theme: brandLight)));
@@ -128,6 +142,87 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(sheetTheme(tester).useMaterial3, isFalse);
+    });
+  });
+
+  group('the two steps', () {
+    Color buttonColor(WidgetTester tester, Key key) =>
+        tester
+            .widget<Material>(
+              find.descendant(
+                of: find.byKey(key),
+                matching: find.byType(Material),
+              ),
+            )
+            .color!;
+
+    Material sheet(WidgetTester tester) => tester.widget<Material>(
+      find
+          .ancestor(
+            of: find.byType(SquawkFeedbackForm),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+
+    testWidgets('Next, the sheet and Send take the given theme', (
+      tester,
+    ) async {
+      setDevice(Brightness.dark);
+      await tester.pumpWidget(app(options: SquawkOptions(theme: brandLight)));
+      await openSheet(tester);
+
+      expect(
+        buttonColor(tester, CaptureOverlay.nextButtonKey),
+        brandLight.colorScheme.secondaryContainer,
+      );
+
+      await openDetails(tester);
+
+      expect(sheet(tester).color, brandLight.colorScheme.surface);
+      expect(
+        buttonColor(tester, SquawkFeedbackForm.submitKey),
+        brandLight.colorScheme.primary,
+      );
+    });
+
+    testWidgets('the open sheet restyles when the theme changes', (
+      tester,
+    ) async {
+      setDevice(Brightness.light);
+      await tester.pumpWidget(app(options: SquawkOptions(theme: brandLight)));
+      await openSheet(tester);
+      await openDetails(tester);
+
+      await tester.pumpWidget(app(options: SquawkOptions(theme: brandDark)));
+      await tester.pump();
+
+      expect(sheet(tester).color, brandDark.colorScheme.surface);
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsOneWidget);
+    });
+
+    testWidgets('both steps work under a Material 2 theme', (tester) async {
+      await tester.pumpWidget(
+        app(
+          options: SquawkOptions(
+            theme: ThemeData(useMaterial3: false, primarySwatch: Colors.pink),
+          ),
+        ),
+      );
+      await openSheet(tester);
+      await openDetails(tester);
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsOneWidget);
+
+      await tester.fling(
+        find.byKey(CaptureOverlay.sheetHandleKey),
+        const Offset(0, 80),
+        800,
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(SquawkFeedbackForm.textKey), findsNothing);
+      expect(find.byKey(CaptureOverlay.nextButtonKey), findsOneWidget);
     });
   });
 
