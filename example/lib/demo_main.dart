@@ -6,21 +6,30 @@ import 'package:squawk/squawk.dart';
 // the tester circles. Run it with
 //   flutter run -t lib/demo_main.dart --dart-define=SQUAWK_API_KEY=sqk_yourkey
 // Shake only, no floating button, so the recording shows the shake.
+// SQUAWK_ENDPOINT points it at another ingest, the way the dev harness does.
 
 const _apiKey = String.fromEnvironment(
   'SQUAWK_API_KEY',
   defaultValue: 'sqk_example_placeholder',
 );
 
+const _endpointFromEnv = String.fromEnvironment('SQUAWK_ENDPOINT');
+
+final Uri? _endpointOverride = _endpointFromEnv.isEmpty
+    ? null
+    : Uri.parse(_endpointFromEnv);
+
 final _theme = ThemeData(
   colorSchemeSeed: const Color(0xFF3F51B5),
-  scaffoldBackgroundColor: const Color(0xFFF7F6F3),
+  scaffoldBackgroundColor: Colors.white,
 );
 
 void main() {
   runApp(
     Squawk(
       apiKey: _apiKey,
+      // ignore: invalid_use_of_visible_for_testing_member
+      endpoint: _endpointOverride,
       options: SquawkOptions(theme: _theme),
       child: const DemoApp(),
     ),
@@ -117,17 +126,24 @@ class OrderScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 34),
-        child: FilledButton(
-          onPressed: () {},
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(52),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+      // SafeArea keeps the button above the Android navigation bar and
+      // the iOS home indicator alike.
+      // SafeArea clears the Android navigation bar and the iOS home
+      // indicator; the padding inside it keeps the button off them.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: FilledButton(
+            onPressed: () {},
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
+            child: const Text('Track order'),
           ),
-          child: const Text('Track order'),
         ),
       ),
     );
